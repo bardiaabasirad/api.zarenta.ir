@@ -1,0 +1,17 @@
+{
+    "$schema": "https://json.schemastore.org/package.json",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "concurrently \"php artisan serve\" \"php artisan reverb:start\"",
+        "reverb": "php artisan reverb:start",
+        "serve": "php artisan serve"
+    },
+    "devDependencies": {
+        "concurrently": "^9.0.1"
+    },
+    "dependencies": {
+        "puppeteer": "^24.30.0",
+        "puppeteer-core": "^24.30.0"
+    }
+}

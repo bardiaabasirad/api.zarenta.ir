@@ -1,0 +1,21 @@
+INSERT INTO `permissions` (`name`, `display_name`, `description`, `created_at`, `updated_at`)
+VALUES
+('manage-operators', 'مدیریت اپراتورها', 'manage operators', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-brokers', 'مدیریت نمایندگی‌ها', 'manage brokers', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('change-settings', 'ویرایش تنظیمات', 'change settings', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-products', 'مدیریت محصولات', 'manage products', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-users', 'مدیریت کاربران', 'manage users', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-categories', 'مدیریت دسته‌بندی‌ها', 'manage categories', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('change-pages', 'مدیریت صفحات', 'manage pages', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-directories', 'مدیریت فهرست‌ها', 'manage directories', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('change-property', 'ویرایش ویژگی محصولات', 'manage property', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-rates', 'مدیریت نرخ‌ها', 'manage rates', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-delivery', 'مدیریت تنظیمات ارسال', 'manage delivery', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-working-hours', 'مدیریت ساعات کاری', 'manage working hours', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-orders', 'مدیریت سفارش‌ها', 'manage orders', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-market', 'مدیریت بازار', 'manage market', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('access-inquiries', 'دسترسی به بخش استعلام‌ها', 'access inquiries', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-clients', 'مدیریت کلاینت‌ها', 'manage clients', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-kimia-accounting', 'مدیریت حسابداری کیمیا', 'manage kimia accounting', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-metals', 'مدیریت فلزات', 'manage metals', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-departments', 'مدیریت دپارتمان‌ها', 'manage-departments', '2024-03-10 00:10:28', '2024-03-10 00:10:28');

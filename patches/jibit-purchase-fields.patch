@@ -1,0 +1,109 @@
+diff --git a/src/Drivers/Jibit/Jibit.php b/src/Drivers/Jibit/Jibit.php
+index ee363ad..e374e9c 100644
+--- a/src/Drivers/Jibit/Jibit.php
++++ b/src/Drivers/Jibit/Jibit.php
+@@ -36,29 +36,45 @@ class Jibit extends Driver
+     /**
+      * Purchase invoice
+      *
+-     * @return string
++     * @return int|string|null
+      * @throws PurchaseFailedException
+      */
+-    public function purchase() : string|int|null
+-    {
++        public function purchase(): int|null|string
++        {
+         $amount = $this->invoice->getAmount() * ($this->settings->currency == 'T' ? 10 : 1); // Convert to Rial
+ 
++        $payerMobileNumber = $this->invoice->getDetail('payerMobileNumber')
++            ?? $this->invoice->getDetail('mobile');
++
++        $payload = [
++            'wage' => $this->invoice->getDetail('wage'),
++            'payerMobileNumber' => $payerMobileNumber,
++            'checkPayerMobileNumber' => $this->invoice->getDetail('checkPayerMobileNumber'),
++            'payerCardNumber' => $this->invoice->getDetail('payerCardNumber'),
++            'payerCardNumbers' => $this->invoice->getDetail('payerCardNumbers'),
++            'payerNationalCode' => $this->invoice->getDetail('payerNationalCode'),
++            'description' => $this->invoice->getDetail('description'),
++            'switching' => $this->invoice->getDetail('switching'),
++            'additionalData' => $this->invoice->getDetail('additionalData'),
++            'userIdentifier' => $this->invoice->getDetail('userIdentifier'),
++        ];
++
+         $requestResult = $this->jibit->paymentRequest(
+             $amount,
+             $this->invoice->getUuid(),
+-            $this->invoice->getDetail('mobile'),
+-            $this->settings->callbackUrl
++            $payerMobileNumber,
++            $this->settings->callbackUrl,
++            $this->settings->currency ?? 'IRR',
++            $payload
+         );
+ 
+-
+         if (! empty($requestResult['pspSwitchingUrl'])) {
+             $this->paymentUrl = $requestResult['pspSwitchingUrl'];
+         }
+ 
+         if (! empty($requestResult['errors'])) {
+             $errMsgs = array_map(fn (array $err) => $err['code'], $requestResult['errors']);
+-
+-            throw new PurchaseFailedException(implode('\n', $errMsgs));
++            throw new PurchaseFailedException(implode("\n", $errMsgs));
+         }
+ 
+         $purchaseId = $requestResult['purchaseId'];
+diff --git a/src/Drivers/Jibit/JibitClient.php b/src/Drivers/Jibit/JibitClient.php
+index 7a1a572..5811575 100644
+--- a/src/Drivers/Jibit/JibitClient.php
++++ b/src/Drivers/Jibit/JibitClient.php
+@@ -53,22 +53,41 @@ class JibitClient
+      * @param int $amount
+      * @param string $referenceNumber
+      * @param string $userIdentifier
++     * @param $callbackUrl
++     * @param string $currency
++     * @param array $payload
++     * @return bool|mixed|string
+      * @throws PurchaseFailedException
+      */
+-    public function paymentRequest(int|float $amount, string|int $referenceNumber, string|null $userIdentifier, string $callbackUrl, string $currency = 'IRR', string|null $description = null, mixed $additionalData = null) : mixed
++    public function paymentRequest(
++        int    $amount,
++        string $referenceNumber,
++        string $userIdentifier,
++        $callbackUrl,
++        string $currency = 'IRR',
++        array $payload = []
++    ): mixed
+     {
+         $this->generateToken();
+ 
+         $data = [
+-            'additionalData' => $additionalData,
+             'amount' => $amount,
+-            'callbackUrl' => $callbackUrl,
+-            'clientReferenceNumber' => $referenceNumber,
+             'currency' => $currency,
++            'clientReferenceNumber' => (string) $referenceNumber,
++            'callbackUrl' => $callbackUrl,
+             'userIdentifier' => $userIdentifier,
+-            'description' => $description,
+         ];
+ 
++        if (is_array($payload)) {
++            $payload = array_filter($payload, static fn ($value) => $value !== null);
++
++            if (isset($payload['additionalData']) && is_array($payload['additionalData'])) {
++                $payload['additionalData'] = json_encode($payload['additionalData'], JSON_UNESCAPED_UNICODE);
++            }
++
++            $data = array_merge($data, $payload);
++        }
++
+         return $this->callCurl('/purchases', $data, true);
+     }
+ 

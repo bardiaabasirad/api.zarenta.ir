@@ -1,0 +1,754 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Zhikgold Project API",
+        "description": "API Documentation for Zhikgold Project",
+        "contact": {
+            "name": "Contact Technical Support",
+            "url": "tel:09124848784"
+        },
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/trader-endpoint-sample/webhook-receiver": {
+            "post": {
+                "tags": [
+                    "Webhooks Integration"
+                ],
+                "summary": "Sample Trader Webhook Receiver Endpoint",
+                "description": "This is a mock / documentation endpoint demonstrating how you (the Trader) should configure, receive, and verify incoming webhook requests dispatched by Zhikgold.\n\n---\n\n### Delivery Conditions & Network Behavior\n- **Trigger:** Webhooks are triggered automatically immediately after new metal prices are committed to the database.\n- **Requirements:**\n  1. Your trader account status must be active (`is_active = true`).\n  2. Webhook integration must be enabled (`webhook_enabled = true`).\n  3. A valid HTTPS endpoint (`webhook_url`) and `webhook_secret` must be configured.\n- **Timeouts:**\n  - Connection timeout: **1 second**\n  - Total request timeout: **3 seconds**\n- **Retry Mechanism:**\n  - In case of network failure or HTTP `5xx`/`4xx` responses, the system retries **2 times** (total 3 attempts).\n  - Backoff delay between attempts: **2 seconds**.\n\n---\n\n### Webhook Security & Verification Guide\nTo protect your endpoints against **Spoofing**, **Data Tampering**, and **Replay Attacks**, Zhikgold signs every request cryptographically using HMAC-SHA256 with your private `webhook_secret`.\n\n```text\n1. Signature Construction\n    payload_to_sign = \"{timestamp}.{event_id}.{raw_request_body}\"\n    computed_hash   = hash_hmac(\"sha256\", payload_to_sign, webhook_secret)\n    expected_header = \"v1=\" + computed_hash\n2. Verification Steps\n    Check Required Headers: Extract X-Webhook-Timestamp, X-Webhook-Id, and X-Webhook-Signature.\n    Prevent Replay Attacks: Ensure abs(current_timestamp - X-Webhook-Timestamp) <= 300 (reject requests older than 5 minutes).\n    Verify Signature: Compute the HMAC hash using the raw unparsed HTTP body ($request->getContent()) and compare it using timing-safe comparison (hash_equals).\n    Enforce Idempotency: Track X-Webhook-Id (e.g., in Redis / Cache) to skip already-processed duplicate dispatches.\n    Return HTTP 200: Respond with HTTP status 200 OK promptly to prevent timeouts.\n    Implementation Example (PHP / Laravel)\n\n<?php\npublic function handleWebhook(\\Illuminate\\Http\\Request $request)\n{\n    $secret    = config('services.zhikgold.webhook_secret');\n    $timestamp = $request->header('X-Webhook-Timestamp');\n    $eventId   = $request->header('X-Webhook-Id');\n    $signature = $request->header('X-Webhook-Signature');\n\n    // 1. Validate security headers presence\n    if (! $timestamp || ! $eventId || ! $signature) {\n        return response()->json(['message' => 'Missing signature headers.'], 401);\n    }\n\n    // 2. Reject replay attacks (tolerance: 5 minutes)\n    if (abs(time() - (int) $timestamp) > 300) {\n        return response()->json(['message' => 'Expired webhook timestamp.'], 401);\n    }\n\n    // 3. Compute expected signature using RAW body\n    $rawBody = $request->getContent();\n\n    $expectedSignature = str_replace('v1=', '', $signature);\n\n    $computedSignature = hash_hmac(\n        'sha256',\n        \"{$timestamp}.{$eventId}.{$rawBody}\",\n        $secret\n    );\n\n    if (! hash_equals($computedSignature, $expectedSignature)) {\n        return response()->json(['message' => 'Invalid webhook signature.'], 401);\n    }\n\n    // 4. Enforce idempotency (deduplication)\n    $cacheKey = \"webhook_event:{$eventId}\";\n    if (! \\Illuminate\\Support\\Facades\\Cache::add($cacheKey, true, now()->addDay())) {\n        return response()->json(['message' => 'Duplicate event ignored.'], 200);\n    }\n\n    // 5. Process metal price payload\n    $payload = $request->json()->all();\n    // Your business logic here ...\n\n    return response()->json(['status' => 'success'], 200);\n}",
+                "operationId": "c5c7ad678f2d0ee67209594af2a2b379",
+                "parameters": [
+                    {
+                        "name": "X-Webhook-Signature",
+                        "in": "header",
+                        "description": "HMAC-SHA256 digital signature formatted as v1={hash}",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "v1=8f7e8a9b0c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f"
+                        }
+                    },
+                    {
+                        "name": "X-Webhook-Timestamp",
+                        "in": "header",
+                        "description": "UNIX timestamp (in seconds) when the webhook dispatch was initiated. Used for replay attack prevention.",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1787841000
+                        }
+                    },
+                    {
+                        "name": "X-Webhook-Id",
+                        "in": "header",
+                        "description": "Unique event identifier (ULID/UUID) for idempotency and duplicate delivery handling.",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "example": "01HQXYZ123456789ABCDEF0000"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "description": "Real-time updated metal price payload dispatched to trader",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/MetalPriceWebhookPayload"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Webhook successfully received, signature verified, and acknowledged by trader",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized: Missing headers, invalid HMAC-SHA256 signature, or expired timestamp (replay attempt)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Invalid signature."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error on trader side: System will retry delivery based on retry policy."
+                    }
+                },
+                "servers": [
+                    {
+                        "url": "https://api.zhikgold.ir",
+                        "description": "Main API Server"
+                    }
+                ]
+            }
+        },
+        "/api/clients/price": {
+            "get": {
+                "tags": [
+                    "Products"
+                ],
+                "summary": "دریافت لیست محصولات در دسترس با قیمت",
+                "operationId": "20b6cb135712390da0f78f4a3607f413",
+                "responses": {
+                    "200": {
+                        "description": "Success",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProductPriceListResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error401"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error403"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "X-API-Key": []
+                    }
+                ]
+            }
+        },
+        "/api/clients/market": {
+            "get": {
+                "tags": [
+                    "Market"
+                ],
+                "summary": "دریافت قیمت‌های بازار",
+                "operationId": "5ccb5635e01e4397520f1e66d1e4da35",
+                "responses": {
+                    "200": {
+                        "description": "آخرین قیمت بازار",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MarketPrice"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error401"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error403"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "X-API-Key": []
+                    }
+                ]
+            }
+        },
+        "/api/orders/track": {
+            "get": {
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "دریافت وضعیت سفارش(ات)",
+                "operationId": "51cfd1c193b1a2bdfc36e2ca1d24de79",
+                "parameters": [
+                    {
+                        "name": "tracking_code",
+                        "in": "query",
+                        "description": "کد رهگیری تکی",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "example": "7987950561"
+                        }
+                    },
+                    {
+                        "name": "source_order_id",
+                        "in": "query",
+                        "description": "شناسه سفارش منبع تکی",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "example": "58R4rG6"
+                        }
+                    },
+                    {
+                        "name": "source_order_ids",
+                        "in": "query",
+                        "description": "شناسه‌های سفارش منبع (چند مقداری)",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "example": "7987950561"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "لیست سفارش(ات)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/OrderStatusItem"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error401"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error403"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "X-API-Key": []
+                    }
+                ]
+            }
+        },
+        "/api/clients/orders": {
+            "post": {
+                "tags": [
+                    "Order"
+                ],
+                "summary": "ثبت سفارش خرید/فروش",
+                "operationId": "cc93264265c1a788434a6eb5d212e713",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/OrderRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "سفارش با موفقیت ثبت شد",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrderResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error401"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict - مظنه ارسالی با آخرین مظنه بازار مطابقت ندارد",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/OrderValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "X-API-Key": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Error401": {
+                "title": "Unauthorized Error",
+                "properties": {
+                    "error": {
+                        "type": "string",
+                        "example": "invalid_api_key"
+                    }
+                },
+                "type": "object"
+            },
+            "Error403": {
+                "title": "Subscription Expired Error",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "Subscription expired."
+                    },
+                    "error_code": {
+                        "type": "string",
+                        "example": "SUBSCRIPTION_EXPIRED"
+                    }
+                },
+                "type": "object"
+            },
+            "ProductPriceItem": {
+                "title": "Product Price Item",
+                "properties": {
+                    "product_id": {
+                        "type": "integer",
+                        "example": 10
+                    },
+                    "product_name": {
+                        "type": "string",
+                        "example": "آبشده نقد حاضر"
+                    },
+                    "buy": {
+                        "type": "integer",
+                        "example": 69247000
+                    },
+                    "sell": {
+                        "type": "integer",
+                        "example": 68543000
+                    },
+                    "buy_status": {
+                        "type": "string",
+                        "example": "inactive",
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ]
+                    },
+                    "sell_status": {
+                        "type": "string",
+                        "example": "inactive",
+                        "enum": [
+                            "active",
+                            "inactive"
+                        ]
+                    },
+                    "time": {
+                        "type": "string",
+                        "example": "2026-06-22 12:41:29"
+                    }
+                },
+                "type": "object"
+            },
+            "ProductPriceListResponse": {
+                "title": "Product Price List Response",
+                "type": "array",
+                "items": {
+                    "$ref": "#/components/schemas/ProductPriceItem"
+                }
+            },
+            "MarketPrice": {
+                "required": [
+                    "id",
+                    "ounce",
+                    "price",
+                    "time"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "example": 398218
+                    },
+                    "ounce": {
+                        "type": "string",
+                        "example": "4082"
+                    },
+                    "price": {
+                        "type": "string",
+                        "example": "16298000"
+                    },
+                    "imami_coin": {
+                        "type": "string",
+                        "example": "164050"
+                    },
+                    "bahar_coin": {
+                        "description": "باید با bahar_azadi_coin در کنترلر تطبیق داده شود",
+                        "type": "string",
+                        "example": "158600"
+                    },
+                    "half_coin": {
+                        "type": "string",
+                        "example": "85700"
+                    },
+                    "quarter_coin": {
+                        "type": "string",
+                        "example": "50000"
+                    },
+                    "dollar": {
+                        "type": "string",
+                        "example": "161500"
+                    },
+                    "euro": {
+                        "type": "string",
+                        "example": "184250"
+                    },
+                    "derham": {
+                        "description": "باید با dirham در کنترلر تطبیق داده شود",
+                        "type": "string",
+                        "example": "44670"
+                    },
+                    "time": {
+                        "type": "string",
+                        "format": "datetime",
+                        "example": "2026-06-24 11:03:21"
+                    }
+                },
+                "type": "object"
+            },
+            "OrderRequest": {
+                "required": [
+                    "quantity",
+                    "order_type",
+                    "mazane",
+                    "product_id",
+                    "order_id"
+                ],
+                "properties": {
+                    "quantity": {
+                        "type": "integer",
+                        "example": 10
+                    },
+                    "order_type": {
+                        "type": "string",
+                        "example": "buy",
+                        "enum": [
+                            "buy",
+                            "sell"
+                        ]
+                    },
+                    "mazane": {
+                        "type": "integer",
+                        "example": 69650000,
+                        "nullable": true
+                    },
+                    "product_id": {
+                        "type": "integer",
+                        "example": 1
+                    },
+                    "order_id": {
+                        "type": "string",
+                        "example": "58R4rG6",
+                        "nullable": true
+                    }
+                },
+                "type": "object"
+            },
+            "OrderResponse": {
+                "properties": {
+                    "tracking_code": {
+                        "type": "integer",
+                        "example": 4011508989
+                    },
+                    "product_name": {
+                        "type": "string",
+                        "example": "آبشده نقد فردا"
+                    },
+                    "order_type": {
+                        "type": "string",
+                        "example": "buy",
+                        "enum": [
+                            "buy",
+                            "sell"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "pending",
+                        "enum": [
+                            "pending",
+                            "processing",
+                            "succeed",
+                            "rejected"
+                        ]
+                    },
+                    "quantity": {
+                        "type": "string",
+                        "example": "10"
+                    },
+                    "fee": {
+                        "type": "integer",
+                        "example": 70470000
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "سفارش شما با موفقیت ثبت شد و در صف بررسی قرار دارد"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "example": "1405/04/03 12:54:53"
+                    }
+                },
+                "type": "object"
+            },
+            "OrderValidationError": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "example": "مظنه ارسالی با آخرین مظنه بازار مطابقت ندارد."
+                    },
+                    "errors": {
+                        "properties": {
+                            "mazane": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                },
+                                "example": [
+                                    "مظنه فعلی: 70,470,000 تومان"
+                                ]
+                            }
+                        },
+                        "type": "object"
+                    },
+                    "current_mazane": {
+                        "type": "integer",
+                        "example": 70470000
+                    },
+                    "submitted_mazane": {
+                        "type": "string",
+                        "example": "70470004"
+                    }
+                },
+                "type": "object"
+            },
+            "OrderStatusItem": {
+                "required": [
+                    "tracking_code",
+                    "product_name",
+                    "order_type",
+                    "status",
+                    "quantity",
+                    "fee",
+                    "message",
+                    "created_at"
+                ],
+                "properties": {
+                    "tracking_code": {
+                        "type": "string",
+                        "example": "7987950561"
+                    },
+                    "product_name": {
+                        "type": "string",
+                        "example": "آبشده نقد فردا"
+                    },
+                    "order_type": {
+                        "type": "string",
+                        "example": "buy",
+                        "enum": [
+                            "buy",
+                            "sell"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "example": "pending",
+                        "enum": [
+                            "pending",
+                            "completed",
+                            "cancelled"
+                        ]
+                    },
+                    "quantity": {
+                        "type": "string",
+                        "example": "10"
+                    },
+                    "fee": {
+                        "type": "integer",
+                        "example": 70470000
+                    },
+                    "message": {
+                        "type": "string",
+                        "example": "سفارش شما با موفقیت ثبت شد و در صف بررسی قرار دارد"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "example": "1405/04/03 13:11:03"
+                    }
+                },
+                "type": "object"
+            },
+            "MetalPriceWebhookPayload": {
+                "title": "Metal Price Webhook Payload",
+                "description": "Detailed structure of the data sent to the trader webhook URL",
+                "required": [
+                    "event",
+                    "event_id",
+                    "product_id",
+                    "product",
+                    "buy",
+                    "sell",
+                    "updated_at"
+                ],
+                "properties": {
+                    "event": {
+                        "description": "Webhook event name",
+                        "type": "string",
+                        "example": "metal_price.updated"
+                    },
+                    "event_id": {
+                        "description": "Unique event identifier",
+                        "type": "string",
+                        "example": "01HQXYZ123456789ABCDEF0000"
+                    },
+                    "product_id": {
+                        "description": "Product identifier (metal_item)",
+                        "type": "integer",
+                        "example": 14,
+                        "nullable": false
+                    },
+                    "product": {
+                        "description": "Product title",
+                        "type": "string",
+                        "example": "آبشده نقد فردا",
+                        "nullable": false
+                    },
+                    "buy": {
+                        "description": "Buy price",
+                        "example": 69247000
+                    },
+                    "sell": {
+                        "description": "Sell price",
+                        "example": 68543000
+                    },
+                    "min_order": {
+                        "description": "Minimum order quantity",
+                        "example": 1
+                    },
+                    "max_order": {
+                        "description": "Maximum order quantity",
+                        "example": 100
+                    },
+                    "updated_at": {
+                        "description": "Update timestamp in ISO 8601 format",
+                        "type": "string",
+                        "format": "date-time",
+                        "example": "2026-08-28T14:30:21+00:00"
+                    }
+                },
+                "type": "object"
+            }
+        },
+        "securitySchemes": {
+            "X-API-Key": {
+                "type": "apiKey",
+                "description": "API Key for authentication",
+                "name": "X-API-Key",
+                "in": "header"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Webhooks Integration",
+            "description": "Webhooks Integration"
+        },
+        {
+            "name": "Products",
+            "description": "Products"
+        },
+        {
+            "name": "Market",
+            "description": "Market"
+        },
+        {
+            "name": "Orders",
+            "description": "Orders"
+        },
+        {
+            "name": "Order",
+            "description": "Order"
+        }
+    ]
+}

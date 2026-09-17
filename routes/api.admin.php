@@ -44,6 +44,7 @@ use App\Http\Controllers\api\v1\admin\SelectedMetalPriceController;
 use App\Http\Controllers\api\v1\admin\SettingController;
 use App\Http\Controllers\api\v1\admin\ShippingMethodController;
 use App\Http\Controllers\api\v1\admin\SizeUnitController;
+use App\Http\Controllers\api\v1\admin\SliderController;
 use App\Http\Controllers\api\v1\admin\TokenController;
 use App\Http\Controllers\api\v1\admin\UserController;
 use App\Http\Controllers\api\v1\admin\VarietyController;
@@ -157,6 +158,10 @@ Route::prefix('v1/admin')
         Route::patch('properties/{property}', [PropertyController::class, 'update']);
         Route::delete('properties/{property}', [PropertyController::class, 'remove']);
         Route::get('properties/usage/{property}', [PropertyController::class, 'usage']);
+        Route::prefix('sliders')->group(function () {
+            Route::get('', [SliderController::class, 'index']);
+            Route::post('', [SliderController::class, 'store']);
+        });
         // Settings
         Route::prefix('settings')->group(function () {
             Route::get('', [SettingController::class, 'index']);
@@ -172,16 +177,18 @@ Route::prefix('v1/admin')
             Route::patch('{setting}', [SettingController::class, 'update']);
 
             // Sections [landing page items]
-            Route::get('sections', [SectionController::class, 'index']);
-            Route::post('sections', [SectionController::class, 'store']);
-            Route::patch('sections/toggle/{section}', [SectionController::class, 'toggle']);
-            Route::get('sections/create', [SectionController::class, 'create']);
-            Route::get('sections/{section}', [SectionController::class, 'get']);
-            Route::patch('sections/{section}', [SectionController::class, 'update']);
-            Route::delete('sections/{section}', [SectionController::class, 'remove']);
-            Route::delete('sections/images/{image_id}', [SectionController::class, 'removeImage']);
-            Route::post('sections/banner/{banner}', [SectionController::class, 'addImage']);
-            Route::post('sections/change-order', [SectionController::class, 'changeOrder']);
+            Route::prefix('sections')->group(function () {
+                Route::get('', [SectionController::class, 'index']);
+                Route::post('', [SectionController::class, 'store']);
+                Route::patch('toggle/{section}', [SectionController::class, 'toggle']);
+                Route::get('create', [SectionController::class, 'create']);
+                Route::get('{section}', [SectionController::class, 'get']);
+                Route::patch('{section}', [SectionController::class, 'update']);
+                Route::delete('{section}', [SectionController::class, 'remove']);
+                Route::delete('images/{image_id}', [SectionController::class, 'removeImage']);
+                Route::post('banner/{banner}', [SectionController::class, 'addImage']);
+                Route::post('change-order', [SectionController::class, 'changeOrder']);
+            });
             Route::get('shipping-method', [ShippingMethodController::class, 'index']);
             Route::get('shipping-method/{shippingMethod}', [ShippingMethodController::class, 'show']);
             Route::patch('shipping-method/{shippingMethod}', [ShippingMethodController::class, 'update']);

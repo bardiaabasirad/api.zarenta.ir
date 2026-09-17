@@ -18,7 +18,7 @@ class SectionStoreRequest extends FormRequest
             'show_on'                       => ['required', Rule::in(['all', 'desktop', 'mobile']),],
             'banner.images'                 => ['required_if:sectionable_type,App\\Models\\Banner','array'],
             'banner.images.*.action'        => ['required_if:sectionable_type,App\\Models\\Banner', 'in:open_product,open_category,open_directory,open_link'],
-            'banner.images.*.image'         => ['required_if:sectionable_type,App\\Models\\Banner', 'image', 'dimensions:max_width=1280,max_height=720','max:5120'],
+            'banner.images.*.image'         => ['required_if:sectionable_type,App\\Models\\Banner', 'image', 'dimensions:max_width=2464,max_height=1080','max:5120'],
             'banner.images.*.actionable'    => [
                 'required_if:sectionable_type,App\\Models\\Banner',
                 Rule::when($this->action === 'open_product', ['exists:products,id']),
@@ -36,7 +36,7 @@ class SectionStoreRequest extends FormRequest
             'banner.title.required_if' => 'عنوان بنر الزامی است',
             'banner.images.required_if' => 'تصویر بنر الزامی است',
             'banner.images.*.image.required_if' => 'تصویر بنر الزامی است',
-            'banner.images.*.image.dimensions' => 'ابعاد تصویر باید بین ۱۲۸۰ در ۷۲۰ پیکسل باشد',
+            'banner.images.*.image.dimensions' => 'ابعاد تصویر باید بین ۲۴۶۴ در ۱۰۸۰ پیکسل باشد',
             'banner.images.*.image.max' => 'حجم تصویر باید کمتر از ۵ مگابایت باشد',
             'banner.images.*.image.image' => 'تصویر انتخاب شده باید یک تصویر با پسوندهای متداول باشد',
             'banner.images.*.action' => 'عملیات بنر الزامی است',

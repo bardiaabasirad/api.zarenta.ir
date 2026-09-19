@@ -14,6 +14,7 @@ use App\Models\PriceSource;
 use App\Models\Section;
 use App\Models\Setting;
 use App\Models\RawMetalPrice;
+use App\Models\Slider;
 use App\Services\BoardCoinService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -522,6 +523,7 @@ class LandingPageController extends Controller
 
         return response()->json([
             'sections' => $sections,
+            'slider' => Slider::where('key', 'main_page_slider')->with('slides')->first(),
         ]);
     }
 

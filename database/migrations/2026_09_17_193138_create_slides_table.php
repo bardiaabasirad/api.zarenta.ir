@@ -16,7 +16,9 @@ return new class extends Migration
             $table->foreignId('slider_id')->constrained()->onDelete('cascade');
             $table->string('title')->nullable(); // عنوان اسلاید (اختیاری)
             $table->string('subtitle')->nullable(); // زیرعنوان کوتاه (اختیاری)
-            $table->string('image_path'); // مسیر فایل تصویر روی سرور
+            $table->string('image_path_desktop'); // مسیر فایل تصویر روی سرور
+            $table->string('image_path_tablet')->nullable(); // مسیر فایل تصویر روی سرور
+            $table->string('image_path_mobile')->nullable(); // مسیر فایل تصویر روی سرور
             $table->string('link_url')->nullable(); // آدرس لینک دکمه/اسلاید
 
             // اکشن‌ها (Action Handling)

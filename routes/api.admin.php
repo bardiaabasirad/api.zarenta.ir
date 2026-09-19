@@ -160,7 +160,10 @@ Route::prefix('v1/admin')
         Route::get('properties/usage/{property}', [PropertyController::class, 'usage']);
         Route::prefix('sliders')->group(function () {
             Route::get('', [SliderController::class, 'index']);
+            Route::get('{slider}', [SliderController::class, 'get']);
+            Route::match(['put', 'patch'], '{slider}', [SliderController::class, 'update']);
             Route::post('', [SliderController::class, 'store']);
+            Route::post('slides', [SliderController::class, 'storeSlide']);
         });
         // Settings
         Route::prefix('settings')->group(function () {

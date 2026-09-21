@@ -4,7 +4,6 @@ namespace App\Http\Controllers\api\v1\general;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AddressRequest;
-use App\Http\Requests\StoreAddressRequest;
 use App\Models\Address;
 use App\Models\City;
 use App\Models\PhysicalAddress;
@@ -19,7 +18,7 @@ class AddressController extends Controller
         $addresses = Address::where('user_id', Auth::guard('user-api')->id())
             ->with([
                 'city' => function($query){
-                    $query->with('province','shippingMethod');
+                    $query->with('province','shippingMethods');
                 }
             ])
             ->get();
@@ -31,7 +30,7 @@ class AddressController extends Controller
         ]);
     }
 
-    public function create()
+    public function getProvincesAndCities()
     {
         return response()->json([
            'provinces' => Province::all(),
@@ -52,32 +51,23 @@ class AddressController extends Controller
         ]);
     }
 
-    public function get(Address $address)
-    {
-        Gate::authorize('view', $address);
-
-        $address->load([
-                'city' => function($query){
-                    $query->with('province','shippingMethod');
-                }
-            ])
-            ->get();
-
-        return response()->json([
-           'address' => $address,
-        ]);
-    }
-
     public function store(AddressRequest $request)
     {
-        $address = Address::create($request->validated()+[
+        $address = Address::create($request->validated() + [
             'user_id' => Auth::guard('user-api')->id()
         ]);
 
+        $address->load([
+            'city' => function($query) {
+                $query->with(['province', 'shippingMethods']);
+            }
+        ]);
+
         return response()->json([
-           'new_address' => $address->load('city.province')
+            'new_address' => $address
         ]);
     }
+
 
     public function update(AddressRequest $request, Address $address)
     {
@@ -85,8 +75,14 @@ class AddressController extends Controller
 
         $address->update($request->validated());
 
+        $address->load([
+            'city' => function($query) {
+                $query->with(['province', 'shippingMethods']);
+            }
+        ]);
+
         return response()->json([
-           'address' => $address->load('city.province'),
+           'address' => $address,
            'message' => trans('messages.address_updated_successfully'),
         ]);
     }

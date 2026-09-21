@@ -546,19 +546,16 @@ class CartController extends Controller
         $received_market_price = $request->input('market_price');
 
         // ۱. بررسی مدت اعتبار قیمت بازار
-        $settings = Setting::whereIn('option_key', ['cart_duration_validity', 'payment_deadline', 'value_added_tax', 'limited_amount_payable_by_gateway'])
+        $settings = Setting::whereIn('option_key', ['payment_deadline', 'value_added_tax', 'limited_amount_payable_by_gateway'])
             ->pluck('option_value', 'option_key');
-
-        $cartDurationValidityPlusSeconds = (int)($settings['cart_duration_validity'] ?? 300);
 
         $database_market_price = MarketPrice::where('id', $received_market_price['id'])
             ->where('price', $received_market_price['price'])
-            ->where('created_at', '>', Carbon::now()->subSeconds($cartDurationValidityPlusSeconds))
             ->first();
 
         if (!$database_market_price) {
             return response()->json([
-                'error' => 'مدت زمان اعتبار قیمت‌ها به پایان رسید، لطفا مجدداً تلاش فرمایید.'
+                'error' => 'خطایی رخ داد لطفا مجدد تلاش کنید'
             ], 422);
         }
 

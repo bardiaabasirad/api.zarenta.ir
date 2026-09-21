@@ -66,9 +66,8 @@ Route::prefix('v1')->middleware(['user.activity'])->group(function () {
         // Cart
         Route::get('shopping-costs', [CartController::class, 'shoppingCosts']);
         Route::get('addresses', [AddressController::class, 'getUserAddresses']);
-        Route::get('addresses/create', [AddressController::class, 'create']);
+        Route::get('addresses/provinces-and-cities', [AddressController::class, 'getProvincesAndCities']);
         Route::get('addresses/{address}', [AddressController::class, 'show']);
-        Route::get('addresses/{address}/with-methods', [AddressController::class, 'get']);
         Route::post('addresses', [AddressController::class, 'store']);
         Route::match(['put','patch'],'addresses/{address}', [AddressController::class, 'update']);
         Route::delete('addresses/{address}', [AddressController::class, 'destroy']);

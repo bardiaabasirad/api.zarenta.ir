@@ -11,6 +11,13 @@ class Address extends Model
 
     protected $guarded = ['id'];
 
+    protected function casts(): array
+    {
+        return [
+            'city_id' => 'integer',
+        ];
+    }
+
     public function city()
     {
         return $this->belongsTo(City::class);

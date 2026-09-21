@@ -122,7 +122,7 @@ return [
     'prohibited_if'    => 'هنگام که :other، :value است فیلد :attribute ممنوع است.',
     'prohibited_unless' => ':attribute ممنوع است مگر اینکه :other برابر با (:values) باشد.',
     'prohibits'        => 'هنگام ورود فیلد :attribute، وارد کردن فیلد :other ممنوع است.',
-    'regex'            => 'The :attribute format is invalid.',
+    'regex'            => 'فرمت :attribute معتبر نیست.',
     "required"         => "فیلد :attribute الزامی است",
     "required_array_keys" => ":attribute باید شامل ورودی هایی برای :for :values باشد.",
     "required_if"      => "فیلد :attribute هنگامی که :other برابر با :value است، الزامیست.",

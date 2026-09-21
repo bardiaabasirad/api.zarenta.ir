@@ -16,7 +16,7 @@ class City extends Model
         return $this->belongsTo(Province::class);
     }
 
-    public function shippingMethod()
+    public function shippingMethods()
     {
         return $this->belongsToMany(ShippingMethod::class, 'city_shipping_methods')->withPivot('shipping_cost','status');
     }

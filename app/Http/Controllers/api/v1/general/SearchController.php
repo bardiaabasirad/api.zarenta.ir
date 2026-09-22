@@ -988,7 +988,7 @@ class SearchController extends Controller
                         ])->orderBy('final_price', 'asc');
                 }
             ])
-            ->paginate($count??16);
+            ->paginate($count??20);
 
         return response()->json([
             'products' => $products,

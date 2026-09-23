@@ -17,6 +17,6 @@ class Directory extends Model
     }
 
     public function sections() {
-        return $this->morphMany(Section::class, 'sectionable');
+        return $this->morphMany(Section::class, 'sectionable', null, null, 'slug');
     }
 }

@@ -3,24 +3,24 @@
 namespace App\Http\Controllers\api\v1\general;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use App\Models\Directory;
 use App\Models\MarketPrice;
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 
-class DirectoryController extends Controller
+class CategoryController extends Controller
 {
     public function products()
     {
         $vat = Setting::where('option_key','value_added_tax')->firstOrFail()->option_value;
         $slug = request()->input('slug');
-        $directory = Directory::where('slug', $slug)->firstOrFail();
+        $category = Category::where('slug', $slug)->firstOrFail();
         $marketPrice = MarketPrice::latest()->first();
         $count = request()->input('count');
 
-        $products = $directory->products()
+        $products = $category->products()
             ->active()
-            ->withPivot('order') // Eager load the 'order' column from the pivot table
             ->select('id','title','created_at')
             ->withCount(['varieties as total_count' => function($query){
                 $query->select(DB::raw('SUM(count)'));
@@ -30,9 +30,9 @@ class DirectoryController extends Controller
                     $subQuery->where('categories.id', request()->input('category_id'));
                 });
             })
-            ->when(request()->has('directory_id'), function ($query) {
-                $query->whereHas('directories', function ($subQuery) {
-                    $subQuery->where('directories.id', request()->input('directory_id'));
+            ->when(request()->has('category_id'), function ($query) {
+                $query->whereHas('categories', function ($subQuery) {
+                    $subQuery->where('categories.id', request()->input('category_id'));
                 });
             })
             ->when(request()->has('property_id'), function ($query) {
@@ -163,12 +163,11 @@ class DirectoryController extends Controller
                         ])->orderBy('final_price', 'asc');
                 }
             ])
-            ->orderByPivot('order', 'DESC')
             ->paginate($count??10);
 
         return response()->json([
             'products' => $products,
-            'directory' => $directory,
+            'category' => $category,
         ]);
     }
 }

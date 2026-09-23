@@ -18,8 +18,8 @@ class BannerStoreRequest extends FormRequest
             'actionable'   => [
                 'required',
                 Rule::when($this->action === 'open_product', ['exists:products,id']),
-                Rule::when($this->action === 'open_category', ['exists:categories,id']),
-                Rule::when($this->action === 'open_directory', ['exists:directories,id']),
+                Rule::when($this->action === 'open_category', ['exists:categories,slug']),
+                Rule::when($this->action === 'open_directory', ['exists:directories,slug']),
                 Rule::when($this->action === 'open_link', ['url']),
             ],
         ];

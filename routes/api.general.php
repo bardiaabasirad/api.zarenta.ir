@@ -3,6 +3,7 @@
 use App\Http\Controllers\api\v1\general\AddressController;
 use App\Http\Controllers\api\v1\general\AuthenticationController;
 use App\Http\Controllers\api\v1\general\CartController;
+use App\Http\Controllers\api\v1\general\CategoryController;
 use App\Http\Controllers\api\v1\general\DirectoryController;
 use App\Http\Controllers\api\v1\general\ImageInterventionController;
 use App\Http\Controllers\api\v1\general\LandingPageController;
@@ -105,8 +106,9 @@ Route::prefix('v1')->middleware(['user.activity'])->group(function () {
     // search
     Route::get('autocomplete', [SearchController::class, 'autocomplete']);
     Route::get('search', [SearchController::class, 'search']);
-    // directory
+    // category and directory
     Route::get('directories', [DirectoryController::class, 'products']);
+    Route::get('categories', [CategoryController::class, 'products']);
     // get last price
     Route::get('domestic-market', [RateController::class, 'domesticMarket']);
     // domestic market page

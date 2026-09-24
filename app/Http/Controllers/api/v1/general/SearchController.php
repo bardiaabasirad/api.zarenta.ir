@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\api\v1\general;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\ProductShowGeneralReasource;
 use App\Models\Category;
 use App\Models\Color;
 use App\Models\MarketPrice;

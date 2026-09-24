@@ -116,8 +116,6 @@ Route::prefix('v1')->middleware(['user.activity'])->group(function () {
     Route::get('domestic-market-landing/last-ones/{rate?}', [RateController::class, 'lastOnes']);
     // Settings
     Route::get('vat', [SettingController::class, 'vat']);
-    //
-    Route::get('cart-duration-validity', [CartController::class, 'cartDurationValidity']);
 
 //        Route::prefix('azki')->group(function () {
 //            Route::post('payment', [AzkiController::class, 'payment']);

@@ -30,6 +30,8 @@ class ManualController extends Controller
 
     public function test()
     {
+        return bcrypt('12345678');
+
         $minAndMax = Setting::whereIn('option_key', [
             'min_melted_stock_quantity',
             'max_melted_stock_quantity'

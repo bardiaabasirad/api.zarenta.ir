@@ -176,6 +176,18 @@ class OrderController extends Controller
             }
         }
 
+        /**
+         * settlement_type ENUM('spot', 'tomorrow', 'next_day', 'custom_date') NOT NULL DEFAULT 'spot'
+         */
+        /**
+         * settlement_date DATE NOT NULL
+         * تاریخ دقیق تسویه (مثلاً امروز، فردا یا ۶ مهر)
+         */
+        /**
+         * required_collateral_irr DECIMAL(20, 2) NOT NULL
+         * کل ارزش ریالی ضمانت مورد نیاز (مثلاً ۱۰٪ ارزش معامله)
+         */
+
         $payload = [
             'tracking_code' => MetalOrderService::generateTrackingCode(),
             'created_id' => $metalTrader->id,

@@ -14,20 +14,25 @@ return new class extends Migration
         Schema::create('metal_order_collaterals', function (Blueprint $table) {
             $table->id();
             $table->comment('جدول نگهداری جزئیات ضمانت‌های بلوکه‌شده به تفکیک کیف پول');
-            $table->foreignIdFor(\App\Models\MetalTrader::class)
+
+            $table->foreignIdFor(\App\Models\MetalOrder::class)
                 ->constrained()
                 ->cascadeOnDelete()
                 ->cascadeOnUpdate();
+
             $table->foreignIdFor(\App\Models\MetalTraderWallet::class)
                 ->constrained()
                 ->cascadeOnDelete()
                 ->cascadeOnUpdate();
+
             $table->decimal('amount_blocked', 20,3)
                 ->nullable()
                 ->comment('مقدار دارایی بلوکه‌شده (مثلاً 2.000 گرم یا 46000000 تومان)');
-            $table->decimal('equivalent_irr_value', 20,0)
+
+            $table->decimal('equivalent_toman_value', 20,0)
                 ->nullable()
-                ->comment('ارزش معادل ریالی مقدار بلوکه‌شده در لحظه دقیق ثبت سفارش');
+                ->comment('ارزش معادل تومانی مقدار بلوکه‌شده در لحظه دقیق ثبت سفارش');
+
             $table->timestamps();
         });
     }

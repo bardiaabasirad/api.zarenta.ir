@@ -139,7 +139,6 @@ class OrderController extends Controller
         $extraData = [
             'order_reference' => 'pnl',
             'frozen' => $frozen,
-            'accounting_document_id' => $metalItem->requires_accounting_document_id ? $metalItem->accounting_document_id : null,
         ];
 
         // بررسی اینکه نرخ سفارش به صرفه است یا نه

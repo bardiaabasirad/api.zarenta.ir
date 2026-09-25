@@ -12,8 +12,6 @@ class RateController extends Controller
 {
     public function getRate()
     {
-        $storedMessages = Redis::get('client:messages');
-
         // همه تنظیمات موردنیاز را فقط یک بار بخوان
         $allSettingKeys = [
             'market_status',
@@ -35,9 +33,7 @@ class RateController extends Controller
             'metal_item_groups' => $metalItemGroups,
             'market_status' => $settings['market_status'] ?? null,
             'expiration_time' => $settings['validity_period_of_melted_order_before_expires'] ?? null,
-            'messages' => ($storedMessages && trim($storedMessages) !== '')
-                ? preg_split('/\r\n|\n|\r/', $storedMessages, -1, PREG_SPLIT_NO_EMPTY)
-                : [],
+            'messages' => Redis::get('client:messages'),
         ]);
     }
 }

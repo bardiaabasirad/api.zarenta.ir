@@ -140,19 +140,11 @@ class SettingController extends Controller
         $messages = trim($request->input('message'));
         Redis::set('client:messages', $messages);
 
-        // Retrieve the stored messages from Redis
-        $storedMessages = Redis::get('client:messages');
-
-        // Convert to array, handling empty or null cases
-        $messagesArray = ($storedMessages && trim($storedMessages) !== '')
-            ? preg_split('/\r\n|\n|\r/', $storedMessages, -1, PREG_SPLIT_NO_EMPTY)
-            : [];
-
-        ClientMessagesUpdated::dispatch($messagesArray);
+        ClientMessagesUpdated::dispatch($messages);
         SettingsChanged::dispatch();
 
         return response()->json([
-            'messages' => $messagesArray,
+            'messages' => $messages,
         ]);
     }
 

@@ -11,7 +11,7 @@ use App\Http\Controllers\api\v1\metalTrader\RateController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
-Route::prefix('v1/clients')
+Route::prefix('v1/traders')
     ->group(function () {
 
     Route::prefix('auth')->group(function () {
@@ -71,6 +71,10 @@ Route::prefix('v1/clients')
                 // استفاده از Laravel Broadcast برای authorize کردن
                 return Broadcast::auth($request);
             });
+        });
+
+        Route::prefix('assets')->group(function () {
+            Route::get('', [\App\Http\Controllers\api\v1\metalTrader\AssetController::class, 'assets']);
         });
 
         Route::get('orders', [OrderController::class, 'index']);

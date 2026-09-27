@@ -80,7 +80,7 @@ class MetalOrderService
             $metalOrder->status === 'succeed' &&
             $previousStatus !== 'succeed'
         ) {
-            KimiaService::submitGoldOrder($metalOrder->fresh());
+            AssetService::updateAsset($metalOrder->fresh());
         }
 
         return $metalOrder->fresh();

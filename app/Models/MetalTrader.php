@@ -91,6 +91,11 @@ class MetalTrader extends Authenticatable
         return $this->belongsTo(DealingGroup::class, 'dealing_group_id');
     }
 
+    public function assets()
+    {
+        return $this->hasMany(MetalTraderWallet::class);
+    }
+
     public function subscriptions()
     {
         return $this->hasMany(Subscription::class);

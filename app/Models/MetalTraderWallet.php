@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class MetalTraderWallet extends Model
 {
+    protected $guarded = ['id'];
+
     /**
      * ویژگی‌هایی که باید در آرایه‌سازی و خروجی JSON مدل همیشه پیوست شوند.
      *

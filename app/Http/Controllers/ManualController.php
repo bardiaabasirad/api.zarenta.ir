@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Constants\MetalOrderStatus;
 use App\Models\MarketPrice;
 use App\Models\MetalItem;
 use App\Models\MetalItemGroup;
 use App\Models\MetalOrder;
 use App\Models\Setting;
+use App\Services\AssetService;
 use App\Services\Hamtala\HamtalaOrderExchangeService;
 use App\Services\Hamtala\HamtalaPriceService;
 use App\Services\KimiaService;
+use App\Services\MetalOrderService;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
@@ -30,6 +33,8 @@ class ManualController extends Controller
 
     public function test()
     {
+        return AssetService::updateAsset(MetalOrder::latest()->first());
+
         return bcrypt('12345678');
 
         $minAndMax = Setting::whereIn('option_key', [

@@ -9,6 +9,7 @@ use App\Http\Controllers\api\v1\admin\DealingGroupController;
 use App\Http\Controllers\api\v1\admin\DepartmentController;
 use App\Http\Controllers\api\v1\admin\KimiaController;
 use App\Http\Controllers\api\v1\admin\ManualMetalOrderController;
+use App\Http\Controllers\api\v1\admin\MarketHolidayController;
 use App\Http\Controllers\api\v1\admin\MetalCardController;
 use App\Http\Controllers\api\v1\admin\MetalItemController;
 use App\Http\Controllers\api\v1\admin\MetalItemGroupController;
@@ -80,6 +81,12 @@ Route::prefix('v1/admin')
 
             // استفاده از سیستم احراز هویت پیش‌فرض Laravel
             return Broadcast::auth($request);
+        });
+
+        Route::prefix('market-holidays')->group(function () {
+            Route::get('', [MarketHolidayController::class, 'index']);
+            Route::delete('{holiday}', [MarketHolidayController::class, 'destroy']);
+            Route::post('toggle', [MarketHolidayController::class, 'toggle']);
         });
 
         // dateTime

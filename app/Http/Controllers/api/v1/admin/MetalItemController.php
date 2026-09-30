@@ -75,6 +75,7 @@ class MetalItemController extends Controller
             ],
             'metal_item_groups' => MetalItemGroup::all(),
             'metal_item' => $metalItem,
+            'spot_metal_items' => MetalItem::withoutGlobalScope('visible')->where('is_spot', true)->get(['id', 'title']),
         ]);
     }
 
@@ -116,15 +117,14 @@ class MetalItemController extends Controller
         $validated = $request->validate([
             'title' => 'sometimes|required|min:3|max:255|unique:metal_items,title,' . $metalItem->id,
             'metal_item_group_id' => 'sometimes|required|exists:metal_item_groups,id',
+            'settlement_metal_item_id' => 'sometimes|required|exists:metal_items,id',
             'buy_sell_spread' => 'sometimes|required|integer',
             'is_buy_active' => 'sometimes|required',
             'is_sell_active' => 'sometimes|required',
             'is_visible' => 'sometimes|required',
-            'kimia_product_id' => 'sometimes|required',
-            'requires_accounting_document_id' => 'sometimes|required',
-            'accounting_document_id' => 'nullable',
+            'is_spot' => 'sometimes|required',
+            'settlement_working_days' => 'sometimes|required|integer|min:0',
             'purity' => 'sometimes|required',
-            'equivalent_to' => 'sometimes|required|numeric|min:0|max:9999999.999|decimal:0,3',
             'unit' => 'sometimes|required|in:gram,count',
         ]);
 

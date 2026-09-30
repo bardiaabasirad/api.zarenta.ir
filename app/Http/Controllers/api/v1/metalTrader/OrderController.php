@@ -7,11 +7,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\MetalOrderStoreRequest;
 use App\Http\Resources\MetalOrdersResource;
 use App\Jobs\CheckKimiaBalance;
+use App\Models\MarketHoliday;
 use App\Models\MetalItem;
 use App\Models\MetalOrder;
 use App\Models\MetalTrader;
 use App\Models\SelectedMetalPrice;
 use App\Models\Setting;
+use App\Services\MarketHolidayService;
 use App\Services\MetalOrderService;
 use Carbon\Carbon;
 use DB;
@@ -82,6 +84,8 @@ class OrderController extends Controller
         $latestPriceObject = SelectedMetalPrice::where('metal_item_id', $metal_item_id)->latest()->first();
 
         $metalItem = MetalItem::find($metal_item_id);
+
+        $settlementDate = MarketHolidayService::getSettlementDateForMetalItem($metalItem);
 
         $persianUnit = $metalItem->unit == 'count' ? 'عدد' : 'گرم';
 
@@ -190,14 +194,15 @@ class OrderController extends Controller
         $payload = [
             'tracking_code' => MetalOrderService::generateTrackingCode(),
             'created_id' => $metalTrader->id,
+            'metal_item_id' => $metalItem->id,
             'created_type' => (new MetalTrader())->getMorphClass(),
             'order_type' => $action,
             'status' => $status,
             'extra_data' => $extraData,
+            'settlement_date' => $settlementDate,
             'product' => [
                 ...$newPrice,
                 'name' => $metalItem->title,
-                'metal_item_id' => $metalItem->id,
                 'kimia_product_id' => $metalItem->kimia_product_id,
                 'fee' => $usedPrice,
                 'fee_margin' => $tolerance,
@@ -215,21 +220,8 @@ class OrderController extends Controller
             $order = MetalOrder::create($payload);
             $order->updateProductFee();
 
-            if ($metalTrader->trade_leverage && $metalTrader->trade_leverage > 0) {
-                $order->leverageCheck()->create([
-                    'status' => 'pending',
-                    'applied_leverage' => $metalTrader->trade_leverage,
-                    'order_value' => $amount,
-                ]);
-            }
-
             return $order;
         });
-
-        // ✅ اینجا خارج از Transaction است
-        if ($metalTrader->trade_leverage && $metalTrader->trade_leverage > 0) {
-            CheckKimiaBalance::dispatch($order, $metalTrader->trade_leverage, $metalTrader->kimi_account_id);
-        }
 
         return response()->json(['order' => MetalOrdersResource::make($order)]);
     }

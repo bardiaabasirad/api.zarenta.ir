@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\api\v1\metalTrader;
 
 use App\Http\Controllers\Controller;
+use App\Models\MarketHoliday;
 use App\Models\MetalItemGroup;
 use App\Models\Setting;
 use App\Services\EncryptionService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Redis;
 
 class RateController extends Controller
@@ -25,12 +27,22 @@ class RateController extends Controller
 
         $metalItemGroups = MetalItemGroup::with(['metalItems' => function ($query) {
             $query->orderBy('sort_order', 'asc');
-        }, 'metalItems.latestPrice'])->orderBy('sort_order', 'asc')->get();
+        }, 'metalItems.latestPrice'])
+            ->orderBy('sort_order', 'asc')->get();
 
         $metalItemGroups = EncryptionService::encrypt($metalItemGroups);
 
+        $today = Carbon::today()->toDateString();            // مثلاً: 2026-09-29
+        $thirtyDaysLater = Carbon::today()->addDays(30)->toDateString(); // 2026-10-29
+
+        $holidays = MarketHoliday::query()
+            ->whereBetween('date', [$today, $thirtyDaysLater])
+            ->orderBy('date', 'asc')
+            ->get(['id', 'date', 'jalali_date', 'title']);
+
         return response()->json([
             'metal_item_groups' => $metalItemGroups,
+            'holidays' => $holidays,
             'market_status' => $settings['market_status'] ?? null,
             'expiration_time' => $settings['validity_period_of_melted_order_before_expires'] ?? null,
             'messages' => Redis::get('client:messages'),

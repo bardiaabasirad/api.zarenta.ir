@@ -30,6 +30,10 @@ return new class extends Migration
             $table->decimal('available_balance', 20,3)->nullable();
             $table->decimal('blocked_balance', 20,3)->nullable();
 
+            $table->decimal('fiat_balance', 20, 0)
+                ->default(0)
+                ->comment('موجودی تومانی در دسترس برای تسویه در سررسید');
+
             $table->timestamps();
 
             $table->unique(['metal_trader_id', 'metal_item_id']);

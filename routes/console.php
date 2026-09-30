@@ -2,6 +2,7 @@
 
 use App\Jobs\DeleteOldRates;
 use App\Jobs\RefreshJibitToken;
+use App\Jobs\SettleDueCommitmentsJob;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::job(RefreshJibitToken::class)
@@ -13,6 +14,10 @@ Schedule::job(new DeleteOldRates())
     ->daily()
     ->at('01:00')
     ->timezone('Asia/Tehran');
+
+Schedule::job(new SettleDueCommitmentsJob)
+    ->dailyAt('13:00')
+    ->withoutOverlapping(60);
 
 Schedule::command('job:market-price')
     ->everyMinute()

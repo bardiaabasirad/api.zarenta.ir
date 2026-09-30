@@ -13,6 +13,7 @@ class MetalOrder extends Model
     protected $casts = [
         'extra_data' => 'array',
         'product' => 'array',
+        'settlement_date' => 'date:Y-m-d',
     ];
 
     protected function serializeDate(DateTimeInterface $date)
@@ -39,6 +40,11 @@ class MetalOrder extends Model
     public function isFinalized(): bool
     {
         return in_array($this->status, ['succeed', 'rejected']);
+    }
+
+    public function metalItem()
+    {
+        return $this->belongsTo(MetalItem::class, 'metal_item_id');
     }
 
     public function product(): Attribute

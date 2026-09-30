@@ -22,7 +22,8 @@
         "shetabit/payment": "^6.2",
         "spatie/browsershot": "^5.1",
         "stevebauman/location": "^7.6",
-        "symfony/dom-crawler": "^7.3"
+        "symfony/dom-crawler": "^7.3",
+        "ext-bcmath": "*"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

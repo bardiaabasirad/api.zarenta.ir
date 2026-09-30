@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\api\v1\admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\MetalItem;
+use App\Models\MetalTraderWallet;
+use App\Models\WalletTransaction;
 use App\Services\KimiaService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
@@ -27,7 +30,7 @@ class KimiaController extends Controller
 
     public function getTransactions()
     {
-        $client = Auth::guard('metal-trader-api')->user();
+        $metalTrader = Auth::guard('metal-trader-api')->user();
 
         $startDate = request()->input('start', now());
         $endDate   = request()->input('end', now()->subMonth());
@@ -36,37 +39,28 @@ class KimiaController extends Controller
         $startDate = Carbon::parse($startDate)->format('Y-m-d');
         $endDate   = Carbon::parse($endDate)->format('Y-m-d');
 
-        $transactions = KimiaService::getVoucherTransactions($client->kimi_account_id, [
-            'id'         => $client->kimi_account_id,
-            'fromDate'   => $startDate,
-            'toDate'     => $endDate,
-            'pageNumber' => null,
-            'pageSize'   => $pageSize,
-            'descending' => null,
-        ]);
+        $walletIds = MetalTraderWallet::where('metal_trader_id', $metalTrader->id)->get()->pluck('id')->toArray();
 
-        // فیلتر کردن آیتم‌هایی که هر دو مقدار صفر دارند
-        if (isset($transactions['Items']) && is_array($transactions['Items'])) {
-            $transactions['Items'] = collect($transactions['Items'])
-                ->filter(function ($item) {
-                    $removeByWeightAndMoneyZero = (
-                        isset($item['CumulativeWeight750'], $item['CumulativeSumMoney']) &&
-                        $item['CumulativeWeight750'] == 0 &&
-                        $item['CumulativeSumMoney'] == 0
-                    );
+        $transactions = WalletTransaction::query()
+            ->join('metal_orders', 'metal_orders.id', '=', 'wallet_transactions.metal_order_id')
+            ->join('metal_items', 'metal_items.id', '=', 'metal_orders.metal_item_id')
+            ->whereIn('wallet_transactions.metal_trader_wallet_id', $walletIds)
+            ->select([
+                'wallet_transactions.*', // یا ترجیحاً فقط فیلدهای مورد نیازت از تراکنش
+                'metal_items.title as metal_item_title',
+                'metal_items.unit as metal_item_unit',
+            ])
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-                    $removeByRecordIdAndMoneyZero = (
-                        isset($item['RecordId'], $item['CumulativeSumMoney']) &&
-                        $item['RecordId'] == -1 &&
-                        $item['CumulativeSumMoney'] == 0
-                    );
-
-                    // حذف کن اگه یکی از شرط‌ها برقرار باشه
-                    return !($removeByWeightAndMoneyZero || $removeByRecordIdAndMoneyZero);
-                })
-                ->values()
-                ->all();
-        }
+//        $transactions = KimiaService::getVoucherTransactions($metalTrader->kimi_account_id, [
+//            'id'         => $metalTrader->kimi_account_id,
+//            'fromDate'   => $startDate,
+//            'toDate'     => $endDate,
+//            'pageNumber' => null,
+//            'pageSize'   => $pageSize,
+//            'descending' => null,
+//        ]);
 
         return response()->json($transactions);
     }

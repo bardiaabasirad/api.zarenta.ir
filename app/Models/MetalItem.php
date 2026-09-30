@@ -16,6 +16,7 @@ class MetalItem extends Model
         'is_active' => 'boolean',
         'is_buy_active' => 'boolean',
         'is_sell_active' => 'boolean',
+        'is_spot' => 'boolean',
     ];
 
     public function group()

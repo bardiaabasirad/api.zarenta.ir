@@ -26,7 +26,7 @@ class MetalOrderController extends Controller
         $creatorId = request()->input('creator_id');
         $creatorType = request()->input('creator_type');
 
-        $data = $data->select('id', 'tracking_code', 'created_id', 'created_type', 'product', 'extra_data', 'order_type', 'status', 'created_at')
+        $data = $data->select('id', 'tracking_code', 'created_id', 'created_type', 'product', 'extra_data', 'order_type', 'status', 'settlement_date', 'created_at')
             ->when(isset($status) && $status !== 'all', function ($query) use ($status) {
                 $query->where('status', $status);
             })

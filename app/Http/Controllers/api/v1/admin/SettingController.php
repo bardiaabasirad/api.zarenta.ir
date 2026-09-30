@@ -235,38 +235,4 @@ class SettingController extends Controller
             Log::error('خطا در ارسال پیامک افتتاح بازار: ' . $e->getMessage());
         }
     }
-
-//    public function addReferenceMarket(Request $request)
-//    {
-//        $referenceMarket = PriceSourceMapping::create([
-//            'reference_channel_id' => $request->reference_channel_id,
-//            'type' => $request->type,
-//            'buy' => $request->buy,
-//            'sell' => $request->sell,
-//            'buy_from_sell' => $request->buy_from_sell,
-//            'sell_from_buy' => $request->sell_from_buy,
-//            'generate_buy_or_sell' => $request->generate_buy_or_sell,
-//        ]);
-//
-//        return response()->json([
-//            'reference_market' => $referenceMarket->load('referenceChannel')
-//        ]);
-//    }
-
-//    public function updateReferenceMarket(Request $request, PriceSourceMapping $referenceMarket)
-//    {
-//        $referenceMarket->update(
-//            $request->only(['reference_channel_id', 'buy', 'sell', 'buy_from_sell', 'sell_from_buy', 'generate_buy_or_sell'])
-//        );
-//
-//        return response()->json(['message' => 'بروزرسانی با موفقیت انجام شد']);
-//    }
-
-//    /**
-//     * @throws \Throwable
-//     */
-//    public function deleteReferenceMarket(PriceSourceMapping $referenceMarket)
-//    {
-//        $referenceMarket->delete();
-//    }
 }

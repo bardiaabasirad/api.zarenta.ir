@@ -10,6 +10,7 @@ use App\Services\KimiaService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class KimiaController extends Controller
 {
@@ -39,19 +40,20 @@ class KimiaController extends Controller
         $startDate = Carbon::parse($startDate)->format('Y-m-d');
         $endDate   = Carbon::parse($endDate)->format('Y-m-d');
 
-        $walletIds = MetalTraderWallet::where('metal_trader_id', $metalTrader->id)->get()->pluck('id')->toArray();
+        $walletIds = MetalTraderWallet::where('metal_trader_id', $metalTrader->id)->pluck('id');
 
         $transactions = WalletTransaction::query()
-            ->join('metal_orders', 'metal_orders.id', '=', 'wallet_transactions.metal_order_id')
-            ->join('metal_items', 'metal_items.id', '=', 'metal_orders.metal_item_id')
+            ->leftJoin('metal_trader_wallets', 'metal_trader_wallets.id', '=', 'wallet_transactions.metal_trader_wallet_id')
+            ->leftJoin('metal_items', 'metal_items.id', '=', 'metal_trader_wallets.metal_item_id')
             ->whereIn('wallet_transactions.metal_trader_wallet_id', $walletIds)
             ->select([
-                'wallet_transactions.*', // یا ترجیحاً فقط فیلدهای مورد نیازت از تراکنش
+                'wallet_transactions.*',
                 'metal_items.title as metal_item_title',
                 'metal_items.unit as metal_item_unit',
             ])
-            ->orderBy('created_at', 'desc')
+            ->orderBy('wallet_transactions.created_at', 'desc')
             ->get();
+
 
 //        $transactions = KimiaService::getVoucherTransactions($metalTrader->kimi_account_id, [
 //            'id'         => $metalTrader->kimi_account_id,

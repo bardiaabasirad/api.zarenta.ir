@@ -8,6 +8,7 @@ use App\Models\MetalTraderWallet;
 use App\Models\WalletTransaction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Morilog\Jalali\Jalalian;
 
 class SettlementService
 {
@@ -26,7 +27,9 @@ class SettlementService
 
     public static function settleOrdersForTrader(int $traderId, int $commitmentMetalItemId, string $settlementDate): void
     {
-        DB::transaction(function () use ($traderId, $commitmentMetalItemId, $settlementDate) {
+        $jalaliDate = Jalalian::fromCarbon(\Carbon\Carbon::parse($settlementDate))->format('Y/m/d');
+
+        DB::transaction(function () use ($jalaliDate, $traderId, $commitmentMetalItemId, $settlementDate) {
 
             // ۱. دریافت سفارش‌های معلق
             $orders = MetalOrder::query()
@@ -39,19 +42,20 @@ class SettlementService
                 ->get();
 
             if ($orders->isEmpty()) {
-                Log::warning("[SETTLEMENT] No pending orders found. Exiting.");
+                Log::warning("[SETTLEMENT] No pending orders found for trader #{$traderId} and item #{$commitmentMetalItemId}.");
                 return;
             }
 
-            // ۲. پیدا کردن آیتم مقصد
-            $spotItemId = MetalItem::find($commitmentMetalItemId)->pluck('settlement_metal_item_id')->first();
+            // ۲. پیدا کردن آیتم حاضر مقصد (Spot Item)
+            $commitmentItem = MetalItem::findOrFail($commitmentMetalItemId);
+            $spotItemId = (int) $commitmentItem->settlement_metal_item_id;
 
             // ۳. محاسبه برآیندها
             $netMetal = '0';
             $netFiat  = '0';
 
             foreach ($orders as $order) {
-                $qty = (string) data_get($order->product, 'quantity', '0');
+                $qty    = (string) data_get($order->product, 'quantity', '0');
                 $amount = (string) data_get($order->product, 'amount', '0');
 
                 if ($order->order_type === 'buy') {
@@ -63,73 +67,199 @@ class SettlementService
                 }
             }
 
-            Log::info($netMetal);
-            Log::info(bccomp($netMetal, '0', self::METAL_SCALE));
-            return;
-
-            // ۴. تسویه طلا
+            // ۴. تسویه طلا (Metal Settlement)
             if (bccomp($netMetal, '0', self::METAL_SCALE) !== 0) {
+
+                // ۱. کیف‌پول تعهدی
                 $commitmentMetalWallet = MetalTraderWallet::query()
                     ->where('metal_trader_id', $traderId)
                     ->where('metal_item_id', $commitmentMetalItemId)
                     ->lockForUpdate()
                     ->first();
 
-                $spotMetalWallet = MetalTraderWallet::query()
+                if (! $commitmentMetalWallet) {
+                    throw new \Exception("کیف‌پول تعهدی برای تریدر #{$traderId} و آیتم #{$commitmentMetalItemId} یافت نشد.");
+                }
+
+                // ۲. کیف‌پول حاضر (در صورت نبودن ساخته می‌شود)
+                $spotMetalWallet = self::getOrCreateWallet($traderId, $spotItemId);
+
+                $absMetal = self::bcabs($netMetal, self::METAL_SCALE);
+                $isNetBuyer = bccomp($netMetal, '0', self::METAL_SCALE) > 0;
+
+                // نگاشت تایپ‌های ENUM بر اساس جهت ورود و خروج
+                $commitmentType = $isNetBuyer ? 'settlement_metal_out' : 'settlement_metal_in';
+                $spotType       = $isNetBuyer ? 'settlement_metal_in'  : 'settlement_metal_out';
+
+                // ۳. آپدیت مانده کیف‌پول تعهدی
+                $oldCommitmentBalance = (string) $commitmentMetalWallet->available_balance;
+                $newCommitmentBalance = bcsub($oldCommitmentBalance, $netMetal, self::METAL_SCALE);
+                $commitmentMetalWallet->available_balance = $newCommitmentBalance;
+                $commitmentMetalWallet->save();
+
+                // تراکنش لجر تعهدی
+                $txCommitment = WalletTransaction::create([
+                    'metal_trader_wallet_id' => $commitmentMetalWallet->id,
+                    'created_type'           => 'metal_trader',
+                    'created_id'             => $traderId,
+                    'type'                   => $commitmentType,
+                    'amount'                 => $absMetal,
+                    'balance_before'         => $oldCommitmentBalance,
+                    'balance_after'          => $newCommitmentBalance,
+                    'related_transaction_id' => null,
+                    'description'            => "تسویه نماد تعهدی به حاضر - سررسید {$jalaliDate}",
+                ]);
+
+                // ۴. آپدیت مانده کیف‌پول حاضر (Spot)
+                $oldSpotBalance = (string) $spotMetalWallet->available_balance;
+                $newSpotBalance = bcadd($oldSpotBalance, $netMetal, self::METAL_SCALE);
+                $spotMetalWallet->available_balance = $newSpotBalance;
+                $spotMetalWallet->save();
+
+                // تراکنش لجر حاضر
+                $txSpot = WalletTransaction::create([
+                    'metal_trader_wallet_id' => $spotMetalWallet->id,
+                    'created_type'           => 'metal_trader',
+                    'created_id'             => $traderId,
+                    'type'                   => $spotType,
+                    'amount'                 => $absMetal,
+                    'balance_before'         => $oldSpotBalance,
+                    'balance_after'          => $newSpotBalance,
+                    'related_transaction_id' => $txCommitment->id,
+                    'description'            => "دریافت/تحویل طلای تسویه شده سررسید {$jalaliDate}",
+                ]);
+
+                // زنجیره پیوند لجر
+                $txCommitment->update(['related_transaction_id' => $txSpot->id]);
+            }
+
+            // ۵. تسویه مبلغ تومانی (Fiat Settlement)
+            if (bccomp($netFiat, '0', self::FIAT_SCALE) !== 0) {
+
+                // الف) کیف‌پول تومانی تعهدی (مبدأ) - رفع باگ متغیر به $commitmentMetalItemId
+                $commitmentFiatWallet = MetalTraderWallet::query()
                     ->where('metal_trader_id', $traderId)
-                    ->where('metal_item_id', $spotItemId)
+                    ->where('metal_item_id', $commitmentMetalItemId)
                     ->lockForUpdate()
                     ->first();
 
-                if ($commitmentMetalWallet && $spotMetalWallet) {
-                    $absMetal = self::bcabs($netMetal, self::METAL_SCALE);
-
-                    // کاهش/افزایش تعهدی
-                    $oldCommitmentBalance = $commitmentMetalWallet->available_balance;
-                    $commitmentMetalWallet->available_balance = bcsub($commitmentMetalWallet->available_balance, $netMetal, self::METAL_SCALE);
-                    $commitmentMetalWallet->save();
-
-                    $txCommitment = WalletTransaction::create([
-                        'wallet_id'              => $commitmentMetalWallet->id,
-                        'created_type'           => 'metal_trader',
-                        'created_id'             => $traderId,
-                        'type'                   => 'metal_commitment_settle',
-                        'amount'                 => $absMetal,
-                        'balance_before'         => $oldCommitmentBalance,
-                        'balance_after'          => $commitmentMetalWallet->available_balance,
-                        'related_transaction_id' => null,
-                        'description'            => "تسویه و تبدیل تعهد به حاضر - سررسید {$settlementDate}",
-                    ]);
-
-                    // تغییر کیف‌پول حاضر
-                    $oldSpotBalance = $spotMetalWallet->available_balance;
-                    $spotMetalWallet->available_balance = bcadd($spotMetalWallet->available_balance, $netMetal, self::METAL_SCALE);
-                    $spotMetalWallet->save();
-
-                    $txSpot = WalletTransaction::create([
-                        'wallet_id'              => $spotMetalWallet->id,
-                        'created_type'           => 'metal_trader',
-                        'created_id'             => $traderId,
-                        'type'                   => 'metal_spot_settle',
-                        'amount'                 => $absMetal,
-                        'balance_before'         => $oldSpotBalance,
-                        'balance_after'          => $spotMetalWallet->available_balance,
-                        'related_transaction_id' => $txCommitment->id,
-                        'description'            => "دریافت طلای تسویه شده سررسید {$settlementDate}",
-                    ]);
-
-                    $txCommitment->update(['related_transaction_id' => $txSpot->id]);
-                } else {
-                    Log::error("[SETTLEMENT] Metal Wallets Not Found for Settlement!", [
-                        'commitment_wallet_found' => (bool)$commitmentMetalWallet,
-                        'spot_wallet_found' => (bool)$spotMetalWallet,
-                    ]);
+                if (! $commitmentFiatWallet) {
+                    throw new \Exception("کیف‌پول تومانی تعهدی برای تریدر #{$traderId} یافت نشد.");
                 }
+
+                // ب) کیف‌پول تومانی حاضر (مقصد)
+                $spotFiatWallet = self::getOrCreateFiatWallet($traderId);
+
+                $absFiat = self::bcabs($netFiat, self::FIAT_SCALE);
+                $isBuyer = bccomp($netFiat, '0', self::FIAT_SCALE) < 0;
+
+                // ۱) آپدیت تراز کیف تعهدی: commitment -= netFiat (خنثی‌سازی و میل به صفر)
+                $oldCommitmentFiat = (string) $commitmentFiatWallet->fiat_balance;
+                $newCommitmentFiat = bcsub($oldCommitmentFiat, $netFiat, self::FIAT_SCALE);
+                $commitmentFiatWallet->fiat_balance = $newCommitmentFiat;
+                $commitmentFiatWallet->save();
+
+                // ثبت تراکنش لجر تعهدی با تایپ مجاز settlement_fiat_transfer
+                $txCommitmentFiat = WalletTransaction::create([
+                    'metal_trader_wallet_id' => $commitmentFiatWallet->id,
+                    'created_type'           => 'metal_trader',
+                    'created_id'             => $traderId,
+                    'type'                   => 'settlement_fiat_transfer',
+                    'amount'                 => $absFiat,
+                    'balance_before'         => $oldCommitmentFiat,
+                    'balance_after'          => $newCommitmentFiat,
+                    'related_transaction_id' => null,
+                    'description'            => $isBuyer
+                        ? "تسویه بدهی تومانی تعهدی - سررسید {$jalaliDate}"
+                        : "تسویه بستانکاری تومانی تعهدی - سررسید {$jalaliDate}",
+                ]);
+
+                // ۲) آپدیت تراز کیف حاضر: spot += netFiat (منفی شدن برای خریدار / مثبت شدن برای فروشنده)
+                $oldSpotFiat = (string) $spotFiatWallet->available_balance;
+                $newSpotFiat = bcadd($oldSpotFiat, $netFiat, self::FIAT_SCALE);
+                $spotFiatWallet->available_balance = $newSpotFiat;
+                $spotFiatWallet->save();
+
+                // ثبت تراکنش لجر حاضر با تایپ مجاز و پیوند به تراکنش اول
+                $txSpotFiat = WalletTransaction::create([
+                    'metal_trader_wallet_id' => $spotFiatWallet->id,
+                    'created_type'           => 'metal_trader',
+                    'created_id'             => $traderId,
+                    'type'                   => 'settlement_fiat_transfer',
+                    'amount'                 => $absFiat,
+                    'balance_before'         => $oldSpotFiat,
+                    'balance_after'          => $newSpotFiat,
+                    'related_transaction_id' => $txCommitmentFiat->id,
+                    'description'            => $isBuyer
+                        ? "انتقال بدهی تومانی به کیف‌پول حاضر - سررسید {$jalaliDate}"
+                        : "واریز وجه حاصل از تسویه فروش به کیف‌پول حاضر - سررسید {$jalaliDate}",
+                ]);
+
+                // اتصال زنجیره حسابداری دوطرفه
+                $txCommitmentFiat->update([
+                    'related_transaction_id' => $txSpotFiat->id,
+                ]);
             }
 
-            // ۵. آپدیت وضعیت سفارش‌ها
-            $updatedOrders = MetalOrder::whereIn('id', $orders->pluck('id'))
+            // ۶. آپدیت وضعیت سفارش‌ها
+            MetalOrder::whereIn('id', $orders->pluck('id'))
                 ->update(['settlement_status' => 'settled']);
         });
+    }
+
+    private static function getOrCreateWallet(int $traderId, int $metalItemId): MetalTraderWallet
+    {
+        $wallet = MetalTraderWallet::query()
+            ->where('metal_trader_id', $traderId)
+            ->where('metal_item_id', $metalItemId)
+            ->lockForUpdate()
+            ->first();
+
+        if ($wallet) {
+            return $wallet;
+        }
+
+        try {
+            return MetalTraderWallet::query()->create([
+                'metal_trader_id'   => $traderId,
+                'metal_item_id'     => $metalItemId,
+                'available_balance' => '0',
+                'locked_balance'    => '0',
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            return MetalTraderWallet::query()
+                ->where('metal_trader_id', $traderId)
+                ->where('metal_item_id', $metalItemId)
+                ->lockForUpdate()
+                ->firstOrFail();
+        }
+    }
+
+    private static function getOrCreateFiatWallet(int $traderId): MetalTraderWallet
+    {
+        $wallet = MetalTraderWallet::query()
+            ->where('metal_trader_id', $traderId)
+            ->whereNull('metal_item_id')
+            ->lockForUpdate()
+            ->first();
+
+        if ($wallet) {
+            return $wallet;
+        }
+
+        try {
+            return MetalTraderWallet::query()->create([
+                'metal_trader_id'   => $traderId,
+                'metal_item_id'     => null,
+                'available_balance' => '0',
+                'locked_balance'    => '0',
+            ]);
+        } catch (\Illuminate\Database\QueryException $e) {
+            return MetalTraderWallet::query()
+                ->where('metal_trader_id', $traderId)
+                ->whereNull('metal_item_id')
+                ->lockForUpdate()
+                ->firstOrFail();
+        }
     }
 }

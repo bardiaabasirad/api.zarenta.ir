@@ -200,6 +200,7 @@ class OrderController extends Controller
             'status' => $status,
             'extra_data' => $extraData,
             'settlement_date' => $settlementDate,
+            'settlement_status' => $settlementDate->isAfter(today()) ? 'pending' : 'settled',
             'product' => [
                 ...$newPrice,
                 'name' => $metalItem->title,

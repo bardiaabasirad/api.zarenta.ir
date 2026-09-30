@@ -36,11 +36,9 @@ return new class extends Migration
                     ->comment('تعداد روزهای کاری آینده جهت تسویه حساب (مثلا 2 برای T+2)');
             }
 
-            if (! Schema::hasColumn('metal_items', 'is_spot')) {
-                $table->boolean('is_spot')
-                    ->default(false)
-                    ->after('title');
-            }
+            $table->boolean('is_spot')
+                ->default(false)
+                ->after('title');
 
             if (! Schema::hasColumn('metal_items', 'settlement_metal_item_id')) {
                 $table->foreignIdFor(\App\Models\MetalItem::class, 'settlement_metal_item_id')

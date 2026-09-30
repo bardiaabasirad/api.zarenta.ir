@@ -181,7 +181,7 @@ class AssetService
                 'balance_before'         => $fiatBefore,
                 'balance_after'          => $fiatAfter,
                 'description'            => sprintf(
-                    'ثبت تعهد ریالی سفارش #%s',
+                    'ثبت تعهد تومانی سفارش #%s',
                     $order->getKey()
                 ),
             ]);

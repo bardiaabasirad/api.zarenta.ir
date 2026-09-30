@@ -15,6 +15,7 @@ use App\Models\MetalItem;
 use App\Models\MetalTrader;
 use App\Models\MetalTraderLead;
 use App\Models\MetalTraderLog;
+use App\Models\Setting;
 use App\Models\Subscription;
 use App\Models\SubscriptionFeature;
 use App\Models\VerificationCode;
@@ -56,6 +57,27 @@ class MetalTraderController extends Controller
             })
             ->orderBy($sortBy??'created_at', $dir??'desc')
             ->paginate($count??config('app.per_page'));
+
+        return response()->json([
+            'metal_traders' => $metalTraders
+        ]);
+    }
+
+    public function search()
+    {
+        $q = request()->input('q');
+
+        // 2. کوئری MetalTrader همراه با گروه‌بندی شروط سرچ
+        $metalTraders = MetalTrader::query()
+            ->select('id', 'name', 'phone')
+            ->when($q, function ($query, $q) {
+                $query->where(function ($subQuery) use ($q) {
+                    $subQuery->where('name', 'like', "%{$q}%")
+                        ->orWhere('phone', 'like', "%{$q}%");
+                });
+            })
+            ->with('spotFiatWallet')
+            ->get();
 
         return response()->json([
             'metal_traders' => $metalTraders

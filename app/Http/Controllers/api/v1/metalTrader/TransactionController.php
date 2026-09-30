@@ -1,18 +1,16 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\api\v1\metalTrader;
 
+use App\Http\Controllers\Controller;
 use App\Models\MetalTraderWallet;
 use App\Models\WalletTransaction;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Auth;
-use Spatie\Browsershot\Browsershot;
-use Illuminate\Support\Facades\Response;
 
-class PdfController extends Controller
+class TransactionController extends Controller
 {
-    public function generateClientTransactionPDF()
+    public function index()
     {
         $metalTrader = Auth::guard('metal-trader-api')->user();
 
@@ -21,7 +19,7 @@ class PdfController extends Controller
         $endDate   = Carbon::parse(request()->input('end', now()))->endOfDay();
 
         // ۲. کست کردن pageSize به عدد صحیح با مقدار پیش‌فرض
-        $pageSize  = (int) request()->input('pageSize', 100);
+        $pageSize  = (int) request()->input('pageSize', 100000);
 
         // ۳. استخراج آی‌دی کیف‌پول‌ها
         $walletIds = MetalTraderWallet::where('metal_trader_id', $metalTrader->id)->pluck('id');
@@ -38,31 +36,9 @@ class PdfController extends Controller
                 'metal_items.unit as metal_item_unit',
             ])
             ->orderBy('wallet_transactions.created_at', 'desc')
-            ->limit($pageSize) // محدود کردن تعداد خروجی بر اساس pageSize
+            ->limit($pageSize)
             ->get();
 
-        $html = view('pdf.transactions', compact(['transactions', 'startDate', 'endDate']))->render();
-
-        $browsershot = Browsershot::html($html)
-            ->showBackground()
-            ->margins(4, 4, 4, 4)
-            ->format('A4')
-            ->landscape()
-            ->waitUntilNetworkIdle()
-            ->ignoreHttpsErrors();
-
-        if (App::environment('production')) {
-            $browsershot->setChromePath('/usr/bin/google-chrome')
-                ->setOption('args', ['--no-sandbox', '--disable-setuid-sandbox']);
-        } else {
-            $browsershot->setChromePath('C:\Program Files\Google\Chrome\Application\chrome.exe');
-        }
-
-        $pdf = $browsershot->pdf();
-
-        return Response::make($pdf, 200, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="zarenta-' . jalali($startDate) .'-'. jalali($endDate) . '.pdf"',
-        ]);
+        return response()->json($transactions);
     }
 }

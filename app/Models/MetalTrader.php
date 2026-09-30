@@ -96,6 +96,13 @@ class MetalTrader extends Authenticatable
         return $this->hasMany(MetalTraderWallet::class);
     }
 
+    public function spotFiatWallet()
+    {
+        // فرض می‌کنیم نام مدل کیف‌پول MetalTraderWallet است
+        return $this->hasOne(MetalTraderWallet::class, 'metal_trader_id')
+            ->whereNull('metal_item_id');
+    }
+
     public function subscriptions()
     {
         return $this->hasMany(Subscription::class);

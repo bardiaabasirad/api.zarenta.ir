@@ -7,7 +7,6 @@ use App\Http\Controllers\api\v1\admin\BoardCoinController;
 use App\Http\Controllers\api\v1\admin\ContactController;
 use App\Http\Controllers\api\v1\admin\DealingGroupController;
 use App\Http\Controllers\api\v1\admin\DepartmentController;
-use App\Http\Controllers\api\v1\admin\KimiaController;
 use App\Http\Controllers\api\v1\admin\ManualMetalOrderController;
 use App\Http\Controllers\api\v1\admin\MarketHolidayController;
 use App\Http\Controllers\api\v1\admin\MetalCardController;
@@ -319,6 +318,7 @@ Route::prefix('v1/admin')
         // Metal traders
         Route::prefix('metal-traders')->group(function(){
             Route::get('', [MetalTraderController::class, 'index']);
+            Route::get('search', [MetalTraderController::class, 'search']);
             Route::get('leads', [MetalTraderController::class, 'leads']);
             Route::post('', [MetalTraderController::class, 'store']);
             Route::get('subscription/{subscription}', [MetalTraderController::class, 'showSubscription']);
@@ -394,10 +394,6 @@ Route::prefix('v1/admin')
             Route::delete('/{selectedAutoOrderExchange}', [SelectedAutoOrderExchangeController::class, 'destroy']);
             Route::post('/', [SelectedAutoOrderExchangeController::class, 'store']);
         });
-    });
-
-    Route::prefix('kimia')->group(function (){
-        Route::get('/', [KimiaController::class, 'kimia']);
     });
 
 });

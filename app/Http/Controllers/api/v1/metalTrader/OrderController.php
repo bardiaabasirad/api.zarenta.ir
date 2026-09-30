@@ -188,7 +188,7 @@ class OrderController extends Controller
          */
         /**
          * required_collateral_irr DECIMAL(20, 2) NOT NULL
-         * کل ارزش ریالی ضمانت مورد نیاز (مثلاً ۱۰٪ ارزش معامله)
+         * کل ارزش تومانی ضمانت مورد نیاز (مثلاً ۱۰٪ ارزش معامله)
          */
 
         $payload = [

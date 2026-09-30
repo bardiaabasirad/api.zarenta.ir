@@ -83,8 +83,7 @@ Route::prefix('v1/traders')
         Route::get('orders/{tracking_code}', [OrderController::class, 'show']);
         Route::post('orders', [OrderController::class, 'store']);
         Route::get('rate', [RateController::class, 'getRate']);
-        Route::get('balance/{id}', [\App\Http\Controllers\api\v1\admin\KimiaController::class, 'getVoucherBalance']);
-        Route::get('transactions', [\App\Http\Controllers\api\v1\admin\KimiaController::class, 'getTransactions']);
+        Route::get('transactions', [\App\Http\Controllers\api\v1\metalTrader\TransactionController::class, 'index']);
         Route::get('transactions/pdf', [\App\Http\Controllers\PdfController::class, 'generateClientTransactionPDF']);
         Route::get('contacts', [ContactController::class, 'index']);
 

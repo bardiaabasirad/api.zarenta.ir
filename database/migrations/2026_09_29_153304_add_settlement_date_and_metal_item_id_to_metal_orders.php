@@ -18,7 +18,7 @@ return new class extends Migration
                 ->index('idx_metal_orders_settlement_date');
 
             $table->enum('settlement_status', ['pending', 'settled'])
-                ->default('pending')
+                ->default('settled')
                 ->after('settlement_date')
                 ->index();
 

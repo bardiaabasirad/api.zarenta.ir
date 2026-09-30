@@ -39,10 +39,6 @@ class SettleDueCommitmentsJob implements ShouldQueue
                 ->distinct()
                 ->get();
 
-            Log::info("شروع عملیات تسویه سررسید تاریخ {$today}", [
-                'total_positions' => $pendingPairs->count()
-            ]);
-
             foreach ($pendingPairs as $pair) {
                 try {
                     SettlementService::settleOrdersForTrader(
@@ -55,7 +51,6 @@ class SettleDueCommitmentsJob implements ShouldQueue
                 }
             }
 
-            Log::info("پایان موفقیت‌آمیز عملیات تسویه سررسید تاریخ {$today}");
         } finally {
             optional($lock)->release();
         }

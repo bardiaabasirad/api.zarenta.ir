@@ -16,6 +16,6 @@ VALUES
 ('manage-market', 'مدیریت بازار', 'manage market', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
 ('access-inquiries', 'دسترسی به بخش استعلام‌ها', 'access inquiries', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
 ('manage-clients', 'مدیریت کلاینت‌ها', 'manage clients', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
-('manage-kimia-accounting', 'مدیریت حسابداری کیمیا', 'manage kimia accounting', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
+('manage-accounting', 'مدیریت حسابداری', 'manage accounting', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
 ('manage-metals', 'مدیریت فلزات', 'manage metals', '2024-03-10 00:10:28', '2024-03-10 00:10:28'),
 ('manage-departments', 'مدیریت دپارتمان‌ها', 'manage-departments', '2024-03-10 00:10:28', '2024-03-10 00:10:28');

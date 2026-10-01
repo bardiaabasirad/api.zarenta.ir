@@ -4,65 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Models\MetalTraderWallet;
 use App\Models\WalletTransaction;
+use App\Services\TraderTransactionPdfService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Browsershot\Browsershot;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Http\Request;
 
 class PdfController extends Controller
 {
-    public function generateClientTransactionPDF()
+    public function generateClientTransactionPDF(Request $request, TraderTransactionPdfService $pdfService)
     {
         $metalTrader = Auth::guard('metal-trader-api')->user();
 
-        // ۱. تنظیم بازه زمانی (از ابتدای روز شروع تا انتهای روز پایان)
-        $startDate = Carbon::parse(request()->input('start', now()->subMonth()))->startOfDay();
-        $endDate   = Carbon::parse(request()->input('end', now()))->endOfDay();
-
-        // ۲. کست کردن pageSize به عدد صحیح با مقدار پیش‌فرض
-        $pageSize  = (int) request()->input('pageSize', 100);
-
-        // ۳. استخراج آی‌دی کیف‌پول‌ها
-        $walletIds = MetalTraderWallet::where('metal_trader_id', $metalTrader->id)->pluck('id');
-
-        // ۴. اجرای کوئری با اعمال فیلتر تاریخ و limit
-        $transactions = WalletTransaction::query()
-            ->leftJoin('metal_trader_wallets', 'metal_trader_wallets.id', '=', 'wallet_transactions.metal_trader_wallet_id')
-            ->leftJoin('metal_items', 'metal_items.id', '=', 'metal_trader_wallets.metal_item_id')
-            ->whereIn('wallet_transactions.metal_trader_wallet_id', $walletIds)
-            ->whereBetween('wallet_transactions.created_at', [$startDate, $endDate])
-            ->select([
-                'wallet_transactions.*',
-                'metal_items.title as metal_item_title',
-                'metal_items.unit as metal_item_unit',
-            ])
-            ->orderBy('wallet_transactions.created_at', 'desc')
-            ->limit($pageSize) // محدود کردن تعداد خروجی بر اساس pageSize
-            ->get();
-
-        $html = view('pdf.transactions', compact(['transactions', 'startDate', 'endDate']))->render();
-
-        $browsershot = Browsershot::html($html)
-            ->showBackground()
-            ->margins(4, 4, 4, 4)
-            ->format('A4')
-            ->landscape()
-            ->waitUntilNetworkIdle()
-            ->ignoreHttpsErrors();
-
-        if (App::environment('production')) {
-            $browsershot->setChromePath('/usr/bin/google-chrome')
-                ->setOption('args', ['--no-sandbox', '--disable-setuid-sandbox']);
-        } else {
-            $browsershot->setChromePath('C:\Program Files\Google\Chrome\Application\chrome.exe');
-        }
-
-        $pdf = $browsershot->pdf();
-
-        return Response::make($pdf, 200, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="zarenta-' . jalali($startDate) .'-'. jalali($endDate) . '.pdf"',
-        ]);
+        return $pdfService->downloadPdf(
+            metalTrader: $metalTrader,
+            start:       $request->input('start'),
+            end:         $request->input('end'),
+            pageSize:    (int) $request->input('pageSize', 100)
+        );
     }
 }

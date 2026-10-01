@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\api\v1\admin\AccountingController;
 use App\Http\Controllers\api\v1\admin\AdminController;
 use App\Http\Controllers\api\v1\admin\AuthenticationController;
 use App\Http\Controllers\api\v1\admin\AutoOrderSettingController;
@@ -7,7 +8,6 @@ use App\Http\Controllers\api\v1\admin\BoardCoinController;
 use App\Http\Controllers\api\v1\admin\ContactController;
 use App\Http\Controllers\api\v1\admin\DealingGroupController;
 use App\Http\Controllers\api\v1\admin\DepartmentController;
-use App\Http\Controllers\api\v1\admin\ManualMetalOrderController;
 use App\Http\Controllers\api\v1\admin\MarketHolidayController;
 use App\Http\Controllers\api\v1\admin\MetalCardController;
 use App\Http\Controllers\api\v1\admin\MetalItemController;
@@ -111,12 +111,14 @@ Route::prefix('v1/admin')
         Route::get('melted/channels', [MeltedController::class, 'channels']);
         Route::get('melted/settings', [MeltedController::class, 'settings']);
         Route::patch('melted/settings/{channel}', [MeltedController::class, 'update']);
+        // accounting
+        Route::prefix('accounting')->group(function () {
+            Route::post('/', [AccountingController::class, 'store']);
+            Route::get('/transactions', [AccountingController::class, 'transactions']);
+            Route::get('/transactions/pdf', [AccountingController::class, 'transactionsToPDF']);
+        });
         // Metal orders
         Route::prefix('metal-orders')->group(function () {
-            Route::prefix('manual')->group(function () {
-                Route::get('/', [ManualMetalOrderController::class, 'create']);
-                Route::post('/', [ManualMetalOrderController::class, 'store']);
-            });
             Route::get('/', [MetalOrderController::class, 'index']);
             Route::get('{order}', [MetalOrderController::class, 'show']);
             Route::patch('{order}', [MetalOrderController::class, 'update']);

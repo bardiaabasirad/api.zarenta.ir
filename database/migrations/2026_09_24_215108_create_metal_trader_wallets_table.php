@@ -34,6 +34,8 @@ return new class extends Migration
                 ->default(0)
                 ->comment('موجودی تومانی در دسترس برای تسویه در سررسید');
 
+            $table->decimal('avg_buy_price', 20, 0)->unsigned()->default(0);
+
             $table->timestamps();
 
             $table->unique(['metal_trader_id', 'metal_item_id']);

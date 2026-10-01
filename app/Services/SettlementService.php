@@ -15,6 +15,10 @@ class SettlementService
     const METAL_SCALE = 3;
     const FIAT_SCALE  = 0;
 
+    // مقیاس‌های محاسباتی با دقت بالا
+    private const CALC_SCALE  = 8;
+    private const PRICE_SCALE = 0;
+
     /**
      * پیاده‌سازی قدرمطلق با BCMath بدون وابستگی به توابع ناموجود
      */
@@ -25,13 +29,112 @@ class SettlementService
             : bcadd($number, '0', $scale);
     }
 
+    /**
+     * تقسیم مثبت همراه با گردکردن Half-Up (ریاضی)
+     * جهت محاسبه دقیق بهای تمام‌شده و میانگین موزون
+     */
+    private static function bcdivRoundPositive(string $numerator, string $denominator, int $scale): string
+    {
+        if (bccomp($denominator, '0', self::CALC_SCALE) === 0) {
+            throw new \DivisionByZeroError('Division by zero in bcdivRoundPositive');
+        }
+
+        // یک رقم اعشار بیشتر برای بررسی قاعده گرد کردن
+        $raw = bcdiv($numerator, $denominator, $scale + 1);
+
+        // برش تا scale مورد نظر
+        $truncated = bcadd($raw, '0', $scale);
+
+        $parts = explode('.', $raw, 2);
+        $fraction = $parts[1] ?? '';
+        $roundDigit = isset($fraction[$scale]) ? (int) $fraction[$scale] : 0;
+
+        if ($roundDigit >= 5) {
+            $inc = ($scale === 0)
+                ? '1'
+                : '0.' . str_repeat('0', $scale - 1) . '1';
+
+            $truncated = bcadd($truncated, $inc, $scale);
+        }
+
+        return $truncated;
+    }
+
+    /**
+     * اعمال تغییرات پوزیشن (Delta) روی کیف‌پول و به‌روزرسانی میانگین موزون (MWAC)
+     *
+     * قواعد:
+     * ۱. اگر delta هم‌جهت با پوزیشن قبلی باشد => میانگین موزون (MWAC) جدید محاسبه می‌شود.
+     * ۲. اگر delta خلاف جهت باشد:
+     *    - پوزیشن صفر شود => میانگین ریست (۰) می‌شود.
+     *    - پوزیشن کاهش یابد اما تغییر جهت ندهد => میانگین بدون تغییر باقی می‌ماند.
+     *    - پوزیشن Flip شود (معکوس شود) => میانگین برابر با نرخ انتقال/معامله جدید می‌شود.
+     *
+     * @return array{0: string, 1: string} [balanceAfter, avgAfter]
+     */
+    private static function applyPositionDelta(
+        string $balanceBefore,
+        string $avgBefore,
+        string $delta,
+        string $transactionPrice
+    ): array {
+        $balanceBefore = bcadd($balanceBefore, '0', self::METAL_SCALE);
+        $avgBefore     = bcadd($avgBefore ?? '0', '0', self::PRICE_SCALE);
+        $delta         = bcadd($delta, '0', self::METAL_SCALE);
+
+        $balanceAfter = bcadd($balanceBefore, $delta, self::METAL_SCALE);
+
+        if (bccomp($delta, '0', self::METAL_SCALE) === 0) {
+            return [$balanceAfter, $avgBefore];
+        }
+
+        // اگر پوزیشن نهایی صفر شد، بهای تمام‌شده ریست می‌شود
+        if (bccomp($balanceAfter, '0', self::METAL_SCALE) === 0) {
+            return [$balanceAfter, '0'];
+        }
+
+        $beforeDir = bccomp($balanceBefore, '0', self::METAL_SCALE); // -1, 0, 1
+        $deltaDir  = bccomp($delta, '0', self::METAL_SCALE);         // -1, 0, 1
+
+        // اگر کیف‌پول قبلاً خالی بوده، با نرخ انتقال مقداردهی می‌شود
+        if ($beforeDir === 0) {
+            return [$balanceAfter, bcadd($transactionPrice, '0', self::PRICE_SCALE)];
+        }
+
+        // افزایش حجم در همان جهت => میانگین موزون جدید
+        if ($beforeDir === $deltaDir) {
+            $oldQty = self::bcabs($balanceBefore, self::METAL_SCALE);
+            $addQty = self::bcabs($delta, self::METAL_SCALE);
+            $newQty = self::bcabs($balanceAfter, self::METAL_SCALE);
+
+            $oldCost = bcmul($oldQty, $avgBefore, self::CALC_SCALE);
+            $addCost = bcmul($addQty, bcadd($transactionPrice, '0', self::PRICE_SCALE), self::CALC_SCALE);
+            $total   = bcadd($oldCost, $addCost, self::CALC_SCALE);
+
+            $newAvg = self::bcdivRoundPositive($total, $newQty, self::PRICE_SCALE);
+
+            return [$balanceAfter, $newAvg];
+        }
+
+        // اگر خلاف جهت بود، وضعیت پوزیشن نهایی را بررسی می‌کنیم
+        $afterDir = bccomp($balanceAfter, '0', self::METAL_SCALE);
+
+        // پوزیشن فقط کاهش یافته و Flip نشده => میانگین دست‌نخورده می‌ماند
+        if ($afterDir === $beforeDir) {
+            return [$balanceAfter, $avgBefore];
+        }
+
+        // اگر پوزیشن معکوس (Flip) شده باشد => میانگین برابر با بهای انتقال جدید می‌شود
+        return [$balanceAfter, bcadd($transactionPrice, '0', self::PRICE_SCALE)];
+    }
+
     public static function settleOrdersForTrader(int $traderId, int $commitmentMetalItemId, string $settlementDate): void
     {
         $jalaliDate = Jalalian::fromCarbon(\Carbon\Carbon::parse($settlementDate))->format('Y/m/d');
 
         DB::transaction(function () use ($jalaliDate, $traderId, $commitmentMetalItemId, $settlementDate) {
 
-            // ۱. دریافت سفارش‌های معلق
+            // ۱. دریافت سفارش‌های معلق تریدر تا سررسید مد نظر
             $orders = MetalOrder::query()
                 ->where('created_type', 'metal_trader')
                 ->where('created_id', $traderId)
@@ -50,7 +153,11 @@ class SettlementService
             $commitmentItem = MetalItem::findOrFail($commitmentMetalItemId);
             $spotItemId = (int) $commitmentItem->settlement_metal_item_id;
 
-            // ۳. محاسبه برآیندها
+            if (! $spotItemId) {
+                throw new \RuntimeException("settlement_metal_item_id برای آیتم تعهدی #{$commitmentMetalItemId} تنظیم نشده است.");
+            }
+
+            // ۳. محاسبه برآیند خالص فلز و تومان
             $netMetal = '0';
             $netFiat  = '0';
 
@@ -67,10 +174,10 @@ class SettlementService
                 }
             }
 
-            // ۴. تسویه طلا (Metal Settlement)
+            // ۴. تسویه طلا (Metal Settlement) و انتقال بهای تمام‌شده به کیف‌پول حاضر
             if (bccomp($netMetal, '0', self::METAL_SCALE) !== 0) {
 
-                // ۱. کیف‌پول تعهدی
+                // الف) کیف‌پول تعهدی (مبدأ)
                 $commitmentMetalWallet = MetalTraderWallet::query()
                     ->where('metal_trader_id', $traderId)
                     ->where('metal_item_id', $commitmentMetalItemId)
@@ -78,26 +185,56 @@ class SettlementService
                     ->first();
 
                 if (! $commitmentMetalWallet) {
-                    throw new \Exception("کیف‌پول تعهدی برای تریدر #{$traderId} و آیتم #{$commitmentMetalItemId} یافت نشد.");
+                    throw new \RuntimeException("کیف‌پول تعهدی برای تریدر #{$traderId} و آیتم #{$commitmentMetalItemId} یافت نشد.");
                 }
 
-                // ۲. کیف‌پول حاضر (در صورت نبودن ساخته می‌شود)
+                // ب) کیف‌پول حاضر (مقصد)
                 $spotMetalWallet = self::getOrCreateWallet($traderId, $spotItemId);
 
-                $absMetal = self::bcabs($netMetal, self::METAL_SCALE);
+                // قفل کردن ردیف مقصد با lockForUpdate
+                $spotMetalWallet = MetalTraderWallet::query()
+                    ->whereKey($spotMetalWallet->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $oldCommitmentBalance = bcadd((string) $commitmentMetalWallet->available_balance, '0', self::METAL_SCALE);
+                $oldSpotBalance       = bcadd((string) $spotMetalWallet->available_balance, '0', self::METAL_SCALE);
+
+                $commitmentAvg = bcadd((string) ($commitmentMetalWallet->avg_buy_price ?? '0'), '0', self::PRICE_SCALE);
+                $spotAvg       = bcadd((string) ($spotMetalWallet->avg_buy_price ?? '0'), '0', self::PRICE_SCALE);
+
+                $absMetal   = self::bcabs($netMetal, self::METAL_SCALE);
                 $isNetBuyer = bccomp($netMetal, '0', self::METAL_SCALE) > 0;
 
-                // نگاشت تایپ‌های ENUM بر اساس جهت ورود و خروج
+                // نگاشت تایپ‌های لجر بر اساس جهت ورود و خروج
                 $commitmentType = $isNetBuyer ? 'settlement_metal_out' : 'settlement_metal_in';
                 $spotType       = $isNetBuyer ? 'settlement_metal_in'  : 'settlement_metal_out';
 
-                // ۳. آپدیت مانده کیف‌پول تعهدی
-                $oldCommitmentBalance = (string) $commitmentMetalWallet->available_balance;
+                // ج) به‌روزرسانی موجودی و میانگین مبدأ: commitment -= netMetal
                 $newCommitmentBalance = bcsub($oldCommitmentBalance, $netMetal, self::METAL_SCALE);
-                $commitmentMetalWallet->available_balance = $newCommitmentBalance;
-                $commitmentMetalWallet->save();
+                $newCommitmentAvg     = (bccomp($newCommitmentBalance, '0', self::METAL_SCALE) === 0)
+                    ? '0'
+                    : $commitmentAvg;
 
-                // تراکنش لجر تعهدی
+                $commitmentMetalWallet->forceFill([
+                    'available_balance' => $newCommitmentBalance,
+                    'avg_buy_price'     => $newCommitmentAvg,
+                ])->save();
+
+                // د) به‌روزرسانی موجودی و میانگین مقصد: spot += netMetal
+                [$newSpotBalance, $newSpotAvg] = self::applyPositionDelta(
+                    balanceBefore: $oldSpotBalance,
+                    avgBefore: $spotAvg,
+                    delta: $netMetal,
+                    transactionPrice: $commitmentAvg
+                );
+
+                $spotMetalWallet->forceFill([
+                    'available_balance' => $newSpotBalance,
+                    'avg_buy_price'     => $newSpotAvg,
+                ])->save();
+
+                // هـ) تراکنش لجر تعهدی
                 $txCommitment = WalletTransaction::create([
                     'metal_trader_wallet_id' => $commitmentMetalWallet->id,
                     'created_type'           => 'metal_trader',
@@ -110,13 +247,7 @@ class SettlementService
                     'description'            => "تسویه نماد تعهدی به حاضر - سررسید {$jalaliDate}",
                 ]);
 
-                // ۴. آپدیت مانده کیف‌پول حاضر (Spot)
-                $oldSpotBalance = (string) $spotMetalWallet->available_balance;
-                $newSpotBalance = bcadd($oldSpotBalance, $netMetal, self::METAL_SCALE);
-                $spotMetalWallet->available_balance = $newSpotBalance;
-                $spotMetalWallet->save();
-
-                // تراکنش لجر حاضر
+                // و) تراکنش لجر حاضر
                 $txSpot = WalletTransaction::create([
                     'metal_trader_wallet_id' => $spotMetalWallet->id,
                     'created_type'           => 'metal_trader',
@@ -136,7 +267,7 @@ class SettlementService
             // ۵. تسویه مبلغ تومانی (Fiat Settlement)
             if (bccomp($netFiat, '0', self::FIAT_SCALE) !== 0) {
 
-                // الف) کیف‌پول تومانی تعهدی (مبدأ) - رفع باگ متغیر به $commitmentMetalItemId
+                // الف) کیف‌پول تومانی تعهدی (مبدأ)
                 $commitmentFiatWallet = MetalTraderWallet::query()
                     ->where('metal_trader_id', $traderId)
                     ->where('metal_item_id', $commitmentMetalItemId)
@@ -144,22 +275,27 @@ class SettlementService
                     ->first();
 
                 if (! $commitmentFiatWallet) {
-                    throw new \Exception("کیف‌پول تومانی تعهدی برای تریدر #{$traderId} یافت نشد.");
+                    throw new \RuntimeException("کیف‌پول تومانی تعهدی برای تریدر #{$traderId} یافت نشد.");
                 }
 
                 // ب) کیف‌پول تومانی حاضر (مقصد)
                 $spotFiatWallet = self::getOrCreateFiatWallet($traderId);
 
+                $spotFiatWallet = MetalTraderWallet::query()
+                    ->whereKey($spotFiatWallet->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
                 $absFiat = self::bcabs($netFiat, self::FIAT_SCALE);
                 $isBuyer = bccomp($netFiat, '0', self::FIAT_SCALE) < 0;
 
-                // ۱) آپدیت تراز کیف تعهدی: commitment -= netFiat (خنثی‌سازی و میل به صفر)
-                $oldCommitmentFiat = (string) $commitmentFiatWallet->fiat_balance;
+                // ۱) آپدیت تراز کیف تعهدی: commitment -= netFiat (خنثی‌سازی تعهد ریالی)
+                $oldCommitmentFiat = bcadd((string) ($commitmentFiatWallet->fiat_balance ?? '0'), '0', self::FIAT_SCALE);
                 $newCommitmentFiat = bcsub($oldCommitmentFiat, $netFiat, self::FIAT_SCALE);
+
                 $commitmentFiatWallet->fiat_balance = $newCommitmentFiat;
                 $commitmentFiatWallet->save();
 
-                // ثبت تراکنش لجر تعهدی با تایپ مجاز settlement_fiat_transfer
                 $txCommitmentFiat = WalletTransaction::create([
                     'metal_trader_wallet_id' => $commitmentFiatWallet->id,
                     'created_type'           => 'metal_trader',
@@ -174,13 +310,13 @@ class SettlementService
                         : "تسویه بستانکاری تومانی تعهدی - سررسید {$jalaliDate}",
                 ]);
 
-                // ۲) آپدیت تراز کیف حاضر: spot += netFiat (منفی شدن برای خریدار / مثبت شدن برای فروشنده)
-                $oldSpotFiat = (string) $spotFiatWallet->available_balance;
+                // ۲) آپدیت تراز کیف حاضر: spot += netFiat
+                $oldSpotFiat = bcadd((string) ($spotFiatWallet->available_balance ?? '0'), '0', self::FIAT_SCALE);
                 $newSpotFiat = bcadd($oldSpotFiat, $netFiat, self::FIAT_SCALE);
+
                 $spotFiatWallet->available_balance = $newSpotFiat;
                 $spotFiatWallet->save();
 
-                // ثبت تراکنش لجر حاضر با تایپ مجاز و پیوند به تراکنش اول
                 $txSpotFiat = WalletTransaction::create([
                     'metal_trader_wallet_id' => $spotFiatWallet->id,
                     'created_type'           => 'metal_trader',
@@ -195,13 +331,13 @@ class SettlementService
                         : "واریز وجه حاصل از تسویه فروش به کیف‌پول حاضر - سررسید {$jalaliDate}",
                 ]);
 
-                // اتصال زنجیره حسابداری دوطرفه
+                // اتصال زنجیره لجر دوطرفه
                 $txCommitmentFiat->update([
                     'related_transaction_id' => $txSpotFiat->id,
                 ]);
             }
 
-            // ۶. آپدیت وضعیت سفارش‌ها
+            // ۶. آپدیت وضعیت سفارش‌های سررسیدشده
             MetalOrder::whereIn('id', $orders->pluck('id'))
                 ->update(['settlement_status' => 'settled']);
         });
@@ -225,6 +361,7 @@ class SettlementService
                 'metal_item_id'     => $metalItemId,
                 'available_balance' => '0',
                 'locked_balance'    => '0',
+                'avg_buy_price'     => '0',
             ]);
         } catch (\Illuminate\Database\QueryException $e) {
             return MetalTraderWallet::query()

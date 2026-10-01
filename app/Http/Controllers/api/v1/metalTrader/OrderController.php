@@ -204,7 +204,6 @@ class OrderController extends Controller
             'product' => [
                 ...$newPrice,
                 'name' => $metalItem->title,
-                'kimia_product_id' => $metalItem->kimia_product_id,
                 'fee' => $usedPrice,
                 'fee_margin' => $tolerance,
                 'unit' => $metalItem->unit == 'gram' ? 'گرم' : 'عدد',

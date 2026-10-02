@@ -28,7 +28,6 @@ return new class extends Migration
             $table->string('sell')->nullable();
             $table->string('sell_from_buy')->nullable();
             $table->boolean('generate_buy_or_sell')->default(true);
-
             $table->timestamps();
         });
     }

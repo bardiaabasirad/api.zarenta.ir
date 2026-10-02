@@ -23,7 +23,6 @@ return new class extends Migration
 
             $table->string('buy')->nullable();
             $table->string('sell')->nullable();
-
             $table->timestamp('time');
             $table->timestamps();
 

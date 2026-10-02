@@ -21,7 +21,6 @@ return new class extends Migration
                 ->cascadeOnDelete();
 
             $table->string('title', 191)->unique();
-
             $table->boolean('is_spot')->default(false);
             $table->boolean('is_buy_active')->default(true);
             $table->boolean('is_sell_active')->default(true);

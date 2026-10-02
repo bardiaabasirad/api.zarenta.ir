@@ -33,9 +33,7 @@ class ManualController extends Controller
 
     public function test()
     {
-        return AssetService::updateAsset(MetalOrder::latest()->first());
-
-        return bcrypt('12345678');
+//        return AssetService::updateAsset(MetalOrder::latest()->first());
 
         $minAndMax = Setting::whereIn('option_key', [
             'min_melted_stock_quantity',

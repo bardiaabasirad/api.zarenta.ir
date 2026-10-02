@@ -32,8 +32,8 @@ class RateController extends Controller
 
         $metalItemGroups = EncryptionService::encrypt($metalItemGroups);
 
-        $today = Carbon::today()->toDateString();            // مثلاً: 2026-09-29
-        $thirtyDaysLater = Carbon::today()->addDays(30)->toDateString(); // 2026-10-29
+        $today = Carbon::today()->toDateString();
+        $thirtyDaysLater = Carbon::today()->addDays(30)->toDateString();
 
         $holidays = MarketHoliday::query()
             ->whereBetween('date', [$today, $thirtyDaysLater])

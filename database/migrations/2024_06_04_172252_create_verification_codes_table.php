@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('authenticatable_type')->index();
             $table->string('phone', 10)->index();
             $table->string('code', 8)->index();
+            $table->unsignedTinyInteger('failed_attempts')->default(0);
             $table->timestamp('expired_at')->nullable();
             $table->timestamp('verified_at')->nullable();
             $table->timestamps();

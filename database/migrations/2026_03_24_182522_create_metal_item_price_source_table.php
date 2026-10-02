@@ -12,18 +12,30 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('metal_item_price_source', function (Blueprint $table) {
-            $table->foreignIdFor(\App\Models\PriceSource::class)
-                ->constrained()
+            $table->foreignId('price_source_id')
+                ->constrained('price_sources')
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
-            $table->foreignIdFor(\App\Models\MetalItem::class)
-                ->constrained()
+
+            $table->foreignId('metal_item_id')
+                ->constrained('metal_items')
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
-            $table->string('name');
+
+            // شناسه‌های مجزا برای استعلام نرخ و ثبت سفارش در وب‌سرویس‌های خارجی
+            $table->string('rate_external_identifier', 191)->nullable();
+            $table->string('order_external_identifier', 191)->nullable();
+
             $table->timestamps();
 
+            // کلید اصلی مرکب
             $table->primary(['price_source_id', 'metal_item_id']);
+
+            // ایندکس ترکیبی برای جستجوی سریع بر اساس منبع قیمت و شناسه استعلام نرخ
+            $table->index(
+                ['price_source_id', 'rate_external_identifier'],
+                'idx_source_rate_external_identifier'
+            );
         });
     }
 
@@ -32,6 +44,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('metal_item_aliases');
+        Schema::dropIfExists('metal_item_price_source');
     }
 };

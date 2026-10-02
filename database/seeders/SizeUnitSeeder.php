@@ -12,6 +12,6 @@ class SizeUnitSeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\SizeUnit::factory(2)->create();
+//        \App\Models\SizeUnit::factory(2)->create();
     }
 }

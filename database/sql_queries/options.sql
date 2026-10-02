@@ -10,4 +10,6 @@ VALUES
 ( 'cancel_order', 'انصراف مشتری'),
 ( 'cancel_order', 'موجود نبودن کالا'),
 ( 'cancel_order', 'سایر'),
-( 'cancel_melted_order', 'بسته بودن بازار');
+( 'cancel_melted_order', 'تغییر مظنه'),
+( 'cancel_melted_order', 'بسته بودن بازار'),
+( 'cancel_melted_order', 'نداشتن ته حساب کافی');

@@ -12,6 +12,6 @@ class DirectorySeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\Directory::factory(10)->create();
+//        \App\Models\Directory::factory(10)->create();
     }
 }

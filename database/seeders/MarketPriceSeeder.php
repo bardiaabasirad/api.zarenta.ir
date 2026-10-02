@@ -13,6 +13,6 @@ class MarketPriceSeeder extends Seeder
      */
     public function run(): void
     {
-        MarketPrice::factory(2500)->create();
+//        MarketPrice::factory(2500)->create();
     }
 }

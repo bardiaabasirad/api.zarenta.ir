@@ -13,13 +13,16 @@ return new class extends Migration
     {
         Schema::create('subscriptions', function (Blueprint $table) {
             $table->id();
-            $table->foreignIdFor(\App\Models\ApiClient::class)
-                ->constrained()
+
+            $table->foreignId('metal_trader_id')
+                ->constrained('metal_traders')
                 ->cascadeOnUpdate()
-                ->cascadeOnUpdate();
-            $table->timestamp('starts_at'); // تاریخ شروع اشتراک
-            $table->timestamp('ends_at'); // تاریخ انقضای اشتراک
+                ->cascadeOnDelete();
+
+            $table->dateTime('starts_at')->nullable(); // تاریخ شروع اشتراک
+            $table->dateTime('ends_at')->nullable(); // تاریخ انقضای اشتراک
             $table->decimal('amount', 10, 0)->default(0); // مبلغ اشتراک (برای ثبت قیمت در زمان خرید)
+
             $table->timestamps();
         });
     }

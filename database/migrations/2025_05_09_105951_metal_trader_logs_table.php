@@ -6,27 +6,27 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('client_logs', function (Blueprint $table) {
+        Schema::create('metal_trader_logs', function (Blueprint $table) {
             $table->id();
-            $table->foreignIdFor(\App\Models\ApiClient::class)->constrained()->cascadeOnDelete()->cascadeOnUpdate();
-            $table->unsignedBigInteger('loggable_id');
-            $table->string('loggable_type');
+
+            $table->foreignId('metal_trader_id')
+                ->constrained('metal_traders')
+                ->cascadeOnDelete()
+                ->cascadeOnUpdate();
+
+            // جایگزین loggable_id و loggable_type + ایجاد ایندکس
+            $table->morphs('loggable');
+
             $table->text('new_values')->nullable();
             $table->text('old_values')->nullable();
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('client_logs');
+        Schema::dropIfExists('metal_trader_logs');
     }
 };

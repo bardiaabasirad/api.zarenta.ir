@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('melted_gold_cards', function (Blueprint $table) {
+        Schema::create('metal_cards', function (Blueprint $table) {
             $table->id();
             $table->string('title');
             $table->decimal('buy_fixed', 10, 0)->unsigned()->default(0);
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('melted_gold_cards');
+        Schema::dropIfExists('metal_cards');
     }
 };

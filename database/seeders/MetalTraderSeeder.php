@@ -3,10 +3,8 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 
-class ApiClientSeeder extends Seeder
+class MetalTraderSeeder extends Seeder
 {
     /**
      * Run the database seeds.
@@ -16,8 +14,8 @@ class ApiClientSeeder extends Seeder
         \App\Models\MetalTrader::factory()->createOne([
             'name' => 'بردیا',
             'api_key' => 'YSVMCzVVUWdxIry2Te5sCohhFGmJpFYj',
-            'phone' => '9165797066',
-            'balance' => 100000,
+            'phone' => '9382126008',
+            'balance' => 0,
         ]);
     }
 }

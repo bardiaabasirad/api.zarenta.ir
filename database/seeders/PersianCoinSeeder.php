@@ -12,6 +12,6 @@ class PersianCoinSeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\PersianCoin::factory(10)->create();
+//        \App\Models\PersianCoin::factory(10)->create();
     }
 }

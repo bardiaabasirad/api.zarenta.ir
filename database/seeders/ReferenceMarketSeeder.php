@@ -13,6 +13,6 @@ class ReferenceMarketSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::unprepared(file_get_contents(__DIR__.'/../sql_queries/reference_markets.sql'));
+//        DB::unprepared(file_get_contents(__DIR__.'/../sql_queries/reference_markets.sql'));
     }
 }

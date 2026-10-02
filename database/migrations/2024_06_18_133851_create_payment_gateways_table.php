@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('merchant_id')->nullable();
             $table->string('key')->nullable();
             $table->enum('status',['active','inactive'])->default('active');
+            $table->boolean('owner_card_payment')->default(false);
         });
     }
 

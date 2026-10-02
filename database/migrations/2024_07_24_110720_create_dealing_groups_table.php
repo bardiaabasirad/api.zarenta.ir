@@ -14,9 +14,6 @@ return new class extends Migration
         Schema::create('dealing_groups', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->enum('display_mode', ['quotation','per_gram'])->default('quotation');
-            $table->enum('tolerance_type', ['fixed_amount','percentage'])->default('fixed_amount');
-            $table->json('products_settings')->nullable();
             $table->timestamps();
         });
     }

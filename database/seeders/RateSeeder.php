@@ -11,8 +11,8 @@ class RateSeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\SelectedMetalPrice::factory()->createOne([
-            'reference_channel_id' => 3,
-        ]);
+//        \App\Models\SelectedMetalPrice::factory()->createOne([
+//            'reference_channel_id' => 3,
+//        ]);
     }
 }

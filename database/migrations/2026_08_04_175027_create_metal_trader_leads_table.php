@@ -13,7 +13,14 @@ return new class extends Migration
     {
         Schema::create('metal_trader_leads', function (Blueprint $table) {
             $table->id();
+
             $table->string('phone')->unique();
+
+            $table->enum('lead_type', [
+                'signup_abandoned',
+                'consultation_request',
+            ])->default('signup_abandoned');
+
             $table->timestamp('last_attempt_at')->useCurrent();
             $table->timestamps();
         });

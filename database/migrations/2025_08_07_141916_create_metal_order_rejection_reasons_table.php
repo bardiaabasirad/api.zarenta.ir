@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('verification_codes', function (Blueprint $table) {
-            $table->unsignedTinyInteger('failed_attempts')
-                ->default(0)
-                ->after('code');
+        Schema::create('metal_order_rejection_reasons', function (Blueprint $table) {
+            $table->id();
+            $table->string('value', 255);
+            $table->enum('retry', ['active','inactive'])->default('active');
         });
     }
 
@@ -23,8 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('verification_codes', function (Blueprint $table) {
-            $table->dropColumn('failed_attempts');
-        });
+        Schema::dropIfExists('metal_order_rejection_reasons');
     }
 };

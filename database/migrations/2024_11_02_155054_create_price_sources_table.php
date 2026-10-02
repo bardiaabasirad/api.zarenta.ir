@@ -11,7 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::rename('gold_orders', 'metal_orders');
+        Schema::create('price_sources', function (Blueprint $table) {
+            $table->id();
+            $table->string('name', 100);
+            $table->timestamps();
+        });
     }
 
     /**
@@ -19,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::rename('metal_orders', 'gold_orders');
+        Schema::dropIfExists('price_sources');
     }
 };

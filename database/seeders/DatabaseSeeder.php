@@ -40,7 +40,7 @@ class DatabaseSeeder extends Seeder
             PaymentGatewaySeeder::class,
             WorkingHourSeeder::class,
             ReferenceChannelSeeder::class,
-            ApiClientSeeder::class,
+            MetalTraderSeeder::class,
             SubscriptionFeaturesTableSeeder::class,
             RateSeeder::class,
             ReferenceMarketSeeder::class,

@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('selected_auto_order_exchanges', function (Blueprint $table) {
             $table->id();
-            $table->foreignIdFor(\App\Models\AutoOrderExchange::class)
-                ->constrained()
+            $table->foreignId('reference_channel_id')
+                ->constrained('price_sources')
                 ->cascadeOnDelete()
                 ->cascadeOnUpdate();
             $table->enum('status', ['active','inactive'])->default('active');

@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('product_name_mappings', function (Blueprint $table) {
             $table->id();
-            $table->foreignIdFor(\App\Models\ReferenceChannel::class)
-                ->constrained()
-                ->cascadeOnUpdate()
-                ->cascadeOnDelete();
+            $table->foreignId('reference_channel_id')
+                ->constrained('price_sources')
+                ->cascadeOnDelete()
+                ->cascadeOnUpdate();
             $table->string('english_key', 255);
             $table->string('persian_key', 255);
             $table->string('persian_name', 255);

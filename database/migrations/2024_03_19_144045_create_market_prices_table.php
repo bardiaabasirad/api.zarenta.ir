@@ -25,6 +25,9 @@ return new class extends Migration
             $table->timestamp('read_at');
             $table->timestamps();
         });
+
+        DB::statement('ALTER TABLE market_prices ADD INDEX idx_read_at (read_at DESC)');
+        DB::statement('ALTER TABLE market_prices ADD INDEX idx_created_at (created_at DESC)');
     }
 
     /**

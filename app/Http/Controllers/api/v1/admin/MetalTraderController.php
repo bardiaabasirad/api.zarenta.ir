@@ -221,6 +221,7 @@ class MetalTraderController extends Controller
             'subscriptions' => function ($query) {
                 $query->where('ends_at', '>', now());
             },
+            'assets',
             'dealingGroup:id,name'
         ]);
 
@@ -235,7 +236,7 @@ class MetalTraderController extends Controller
 
         return response()->json([
             'metal_trader' => $metal_trader,
-            'metal_items' => MetalItem::withoutGlobalScope('visible')->get(['id', 'kimia_product_id', 'unit']),
+            'metal_items' => MetalItem::withoutGlobalScope('visible')->get(['id', 'unit']),
             'latest_verification_code' => $latestVerificationCode,
             'dealing_groups' => DealingGroup::select('id', 'name')->get(),
             'block_reasons' => BlockReason::where('type','clients')->get(),

@@ -57,7 +57,7 @@ class AuthenticationController extends Controller
         }
 
         try {
-            PhoneVerificationService::sendCode(MetalTrader::class, $phone, 'utq9vazla5x0uqn');
+            PhoneVerificationService::sendCode(MetalTrader::class, $phone, '84827');
 
             return response()->json([
                 'action' => $action,

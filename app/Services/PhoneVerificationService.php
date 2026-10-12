@@ -37,7 +37,7 @@ class PhoneVerificationService
     public static function sendCode(
         $type,
         $phone,
-        $pattern = 'sfi4qv84ye9cffp'
+        $pattern = ''
     ): void {
         $code = self::generateRandomCode();
 

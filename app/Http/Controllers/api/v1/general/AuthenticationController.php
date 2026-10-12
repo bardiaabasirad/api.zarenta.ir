@@ -36,7 +36,7 @@ class AuthenticationController extends Controller
             ]);
         }
 
-        PhoneVerificationService::sendCode(User::class, $request->input('phone'));
+        PhoneVerificationService::sendCode(User::class, $request->input('phone'), '84828');
 
         if(! User::where('phone', $request->input('phone'))->exists()){
             User::create([

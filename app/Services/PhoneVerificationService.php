@@ -56,7 +56,7 @@ class PhoneVerificationService
                 $phone,
                 $pattern,
                 [
-                    'verification-code' => (string) $code,
+                    'CODE' => (string) $code,
                 ]
             )->onConnection('sync');
         }

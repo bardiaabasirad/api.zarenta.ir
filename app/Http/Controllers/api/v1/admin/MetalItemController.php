@@ -87,11 +87,7 @@ class MetalItemController extends Controller
             'is_buy_active' => 'required',
             'is_sell_active' => 'required',
             'is_visible' => 'required',
-            'kimia_product_id' => 'sometimes|required',
-            'requires_accounting_document_id' => 'required',
-            'accounting_document_id' => 'nullable',
             'purity' => 'required',
-            'equivalent_to' => 'required|numeric|min:0|max:9999999.999|decimal:0,3',
             'unit' => 'required',
         ], [
             'title.required' => 'عنوان الزامی است',

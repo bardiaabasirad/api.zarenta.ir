@@ -51,7 +51,7 @@ class SmsService
         }
     }
 
-    protected function formatParameters(array $parameters): array
+    protected static function formatParameters(array $parameters): array
     {
         // اگر از قبل ساختار name و value داشت، دست نزن
         if (!empty($parameters) && isset($parameters[0]['name'], $parameters[0]['value'])) {

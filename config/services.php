@@ -35,9 +35,9 @@ return [
         ],
     ],
 
-    'sms' => [
-        'base_url' => env('SMS_BASE_URL'),
-        'token' => env('SMS_TOKEN'),
+    'smsir' => [
+        'api_key' => env('SMSIR_API_KEY'),
+        'base_url' => env('SMSIR_BASE_URL', 'https://api.sms.ir/v1'),
     ],
 
     'hamtala' => [

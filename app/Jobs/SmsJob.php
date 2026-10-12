@@ -45,12 +45,7 @@ class SmsJob implements ShouldQueue
     public function handle(): void
     {
         try {
-            $response = SmsService::sendPattern(
-                fromNumber: '+983000505',
-                patternCode: $this->pattern,
-                recipient: $this->phone,
-                params: $this->parameters
-            );
+            SmsService::sendVerify($this->phone, $this->pattern, $this->parameters);
         } catch (Throwable $e) {
             // لاگ کامل خطا
             Log::error('SMS sending failed', [

@@ -39,12 +39,6 @@ class DatabaseSeeder extends Seeder
             PhysicalAddressSeeder::class,
             PaymentGatewaySeeder::class,
             WorkingHourSeeder::class,
-            ReferenceChannelSeeder::class,
-            MetalTraderSeeder::class,
-            SubscriptionFeaturesTableSeeder::class,
-            RateSeeder::class,
-            ReferenceMarketSeeder::class,
-            MeltedGoldCardSeeder::class,
         ]);
     }
 }

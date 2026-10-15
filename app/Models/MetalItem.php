@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use App\Models\Configs\DealingGroupMetalItemConfig;
+use App\Observers\MetalItemObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Configs\MetalItemPriceSource;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
+#[ObservedBy([MetalItemObserver::class])]
 class MetalItem extends Model
 {
     protected $guarded = ['id'];

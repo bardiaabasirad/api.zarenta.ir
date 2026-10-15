@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Observers\BoardCoinObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 
+#[ObservedBy([BoardCoinObserver::class])]
 class BoardCoin extends Model
 {
     protected $fillable = [

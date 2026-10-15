@@ -25,30 +25,24 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->string('buy')->nullable();
-            $table->string('sell')->nullable();
+            $table->decimal('buy', 20, 0)->unsigned()->nullable();
+            $table->decimal('sell', 20, 0)->unsigned()->nullable();
 
             $table->timestamp('time');
             $table->timestamps();
 
-            // ایندکس‌های پایه و عمومی بر اساس آیتم فلز
-            $table->index(['metal_item_id', 'id']);
+            // ۱. پوشش تمام کوئری‌های عمومی بر اساس فلز و فیلتر زمانی
+            // (همچنین به عنوان ایندکس Foreign Key برای metal_item_id عمل می‌کند)
             $table->index(['metal_item_id', 'time'], 'idx_selected_metal_item_time');
 
-            // ایندکس‌های اختصاصی سرویس استعلام و مرتب‌سازی نرخ‌ها
-            // ۱. کوئری دریافت آخرین محصولات: WHERE price_source_id = X AND id IN (...)
+            // ۲. پوشش تمام کوئری‌های استعلام منبع + فلز + بازه زمانی و مرتب‌سازی
+            // توجه: InnoDB به صورت خودکار `id` را به انتهای این ایندکس الصاق می‌کند
             $table->index(
-                ['price_source_id', 'metal_item_id', 'id'],
-                'idx_source_item_id'
+                ['price_source_id', 'metal_item_id', 'time'],
+                'idx_source_item_time'
             );
 
-            // ۲. کوئری دریافت قیمت محصول و مرتب‌سازی: WHERE price_source_id = X AND metal_item_id = Y ORDER BY time DESC, id DESC
-            $table->index(
-                ['price_source_id', 'metal_item_id', 'time', 'id'],
-                'idx_source_item_time_id'
-            );
-
-            // ۳. کوئری زمان آخرین به‌روزرسانی: WHERE price_source_id = X ORDER BY updated_at DESC
+            // ۳. کوئری زمان آخرین به‌روزرسانی بر اساس منبع قیمت
             $table->index(
                 ['price_source_id', 'updated_at'],
                 'idx_source_updated'

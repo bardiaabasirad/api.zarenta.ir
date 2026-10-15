@@ -21,8 +21,8 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
 
-            $table->string('buy')->nullable();
-            $table->string('sell')->nullable();
+            $table->decimal('buy', 20, 0)->unsigned()->nullable();
+            $table->decimal('sell', 20, 0)->unsigned()->nullable();
             $table->timestamp('time');
             $table->timestamps();
 

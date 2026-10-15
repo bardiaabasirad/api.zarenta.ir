@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Observers\PriceSourceMappingObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[ObservedBy([PriceSourceMappingObserver::class])]
 class PriceSourceMapping extends Model
 {
     protected $guarded = ['id'];

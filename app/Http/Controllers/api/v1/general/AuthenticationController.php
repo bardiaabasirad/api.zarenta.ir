@@ -30,13 +30,13 @@ class AuthenticationController extends Controller
 
     public function login(LoginRequest $request)
     {
-        if ($secondsRemaining = PhoneVerificationService::isCodeSentRecently(User::class, $request->input('phone'))) {
+        if ($secondsRemaining = PhoneVerificationService::isCodeSentRecently('user', $request->input('phone'))) {
             return response()->json([
                 'time_remaining' => $secondsRemaining,
             ]);
         }
 
-        PhoneVerificationService::sendCode(User::class, $request->input('phone'), '84828');
+        PhoneVerificationService::sendCode('user', $request->input('phone'), '84828');
 
         if(! User::where('phone', $request->input('phone'))->exists()){
             User::create([
@@ -46,7 +46,7 @@ class AuthenticationController extends Controller
 
         return response()->json([
             'message' => 'کد تایید ارسال شد',
-            'time_remaining' => PhoneVerificationService::isCodeSentRecently(User::class, $request->input('phone'))
+            'time_remaining' => PhoneVerificationService::isCodeSentRecently('user', $request->input('phone'))
         ]);
     }
 
@@ -56,7 +56,7 @@ class AuthenticationController extends Controller
         $phone = $request->string('phone')->toString();
         $verificationCode =
             PhoneVerificationService::checkVerificationCodeIsValid(
-                User::class,
+                'user',
                 $phone,
                 $code
             );

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Observers\MetalTraderObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -10,6 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
+#[ObservedBy([MetalTraderObserver::class])]
 class MetalTrader extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, SoftDeletes;

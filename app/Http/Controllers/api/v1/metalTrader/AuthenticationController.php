@@ -47,7 +47,7 @@ class AuthenticationController extends Controller
             app(MetalTraderLeadService::class)->track($phone);
         }
 
-        if ($secondsRemaining = PhoneVerificationService::isCodeSentRecently(MetalTrader::class, $phone)) {
+        if ($secondsRemaining = PhoneVerificationService::isCodeSentRecently('metal_trader', $phone)) {
             return response()->json([
                 'action' => $action,
                 'time_remaining' => $secondsRemaining,
@@ -57,7 +57,7 @@ class AuthenticationController extends Controller
         }
 
         try {
-            PhoneVerificationService::sendCode(MetalTrader::class, $phone, '84827');
+            PhoneVerificationService::sendCode('metal_trader', $phone, '84827');
 
             return response()->json([
                 'action' => $action,
@@ -122,7 +122,7 @@ class AuthenticationController extends Controller
         $action = $request->input('action', 'login');
 
         $verificationCode = PhoneVerificationService::checkVerificationCodeIsValid(
-            MetalTrader::class,
+            'metal_trader',
             $phone,
             $code
         );

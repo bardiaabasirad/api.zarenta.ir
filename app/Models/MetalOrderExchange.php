@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Observers\MetalOrderExchangeObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Model;
 
+#[ObservedBy([MetalOrderExchangeObserver::class])]
 class MetalOrderExchange extends Model
 {
     protected $guarded = ['id'];

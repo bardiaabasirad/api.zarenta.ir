@@ -68,12 +68,6 @@ class PhoneVerificationService
         string $code
     ): ?VerificationCode {
 
-        Log::info('data', [
-            'type' => $type,
-            'phone' => $phone,
-            'code' => $code,
-        ]);
-
         return DB::transaction(function () use ($type, $phone, $code) {
 
             $verificationCode = VerificationCode::query()

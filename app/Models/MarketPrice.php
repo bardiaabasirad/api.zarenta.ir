@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Observers\MarketPriceObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 
+#[ObservedBy([MarketPriceObserver::class])]
 class MarketPrice extends Model
 {
     use HasFactory;

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Rules\IranianBankCardOrSheba;
 use Illuminate\Foundation\Http\FormRequest;
 
 class IbanRequest extends FormRequest
@@ -9,15 +10,14 @@ class IbanRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'iban' => ['required','iban_or_card'],
+            'iban' => ['required', new IranianBankCardOrSheba()],
         ];
     }
 
     public function messages()
     {
         return [
-            'iban.required' => 'شماره شبا ضروری است',
-            'iban.iban_or_card' => 'شماره شبا‌ یا کارت اشتباه است',
+            'iban.required' => 'شماره شبا ضروری است'
         ];
     }
 }

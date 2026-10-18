@@ -7,51 +7,62 @@ use App\Http\Requests\CategoryStoreRequest;
 use App\Http\Requests\CategoryUpdateRequest;
 use App\Models\Category;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
-    public function index()
+    public function index(Request $request): \Illuminate\Http\JsonResponse
     {
-        $sortBy = request()->input('sortBy');
-        $dir = request()->input('dir');
-        $count = request()->input('count');
-        $code = request()->input('code');
-        $title = request()->input('title');
-        $min = request()->input('min');
-        $max = request()->input('max');
-        $start_date = request()->input('start_date');
-        $end_date = request()->input('end_date');
+        // 1. اعتبارسنجی ورودی‌ها
+        $validated = $request->validate([
+            'sortBy'     => 'nullable|string|in:id,title,created_at,products_count',
+            'dir'        => 'nullable|string|in:asc,desc',
+            'count'      => 'nullable|integer|min:1|max:100',
+            'code'       => 'nullable|integer',
+            'title'      => 'nullable|string|max:100',
+            'min'        => 'nullable|integer|min:0',
+            'max'        => 'nullable|integer|min:0',
+            'start_date' => 'nullable|date',
+            'end_date'   => 'nullable|date|after_or_equal:start_date',
+            'page'       => 'nullable|integer|min:1',
+        ]);
 
-        $categories = Category::query();
+        $perPage = (int) ($validated['count'] ?? 15);
+        $sortBy  = $validated['sortBy'] ?? 'created_at';
+        $dir     = strtolower($validated['dir'] ?? 'asc');
 
-        $categories = $categories->select('id','title','image','created_at')
-            ->when(isset($code), function ($query) use ($code){
-                $query->where('id', 'like', '%' .$code . '%');
-            })
-            ->when(isset($title), function ($query) use ($title){
-                $query->where('title', 'like', '%' . $title . '%');
-            })
-            ->when(isset($start_date) && isset($end_date), function ($query) use ($start_date, $end_date){
-                $startDate = Carbon::parse($start_date)->startOfDay();
-                $endDate = Carbon::parse($end_date)->endOfDay();
-                $query->whereBetween('created_at', [$startDate, $endDate]);
-            })
-            ->when(isset($min), function ($query) use ($min) {
-                $query->having('products_count', '>=', $min);
-            })
-            ->when(isset($max), function ($query) use ($max) {
-                $query->having('products_count', '<=', $max);
-            })
-            ->withCount(['products as products_count'])
-            ->orderBy($sortBy??'created_at', $dir??'asc')->paginate($count);
+        // 2. ساخت کلید اختصاصی برای ردیس
+        $queryParams = $request->query();
+        ksort($queryParams);
+        $cacheKey = 'list:' . md5(http_build_query($queryParams));
 
-        $categoryWithMostProducts = Category::withCount('products')
-            ->orderBy('products_count', 'desc')
-            ->first();
+        // 3. کش در ردیس با استفاده از Cache Tags
+        $categories = Cache::tags(['categories'])->remember($cacheKey, now()->addMinutes(30), function () use ($validated, $sortBy, $dir, $perPage) {
+            return Category::query()
+                ->select(['id', 'title', 'image', 'created_at'])
+                ->withCount('products')
+                ->when(!empty($validated['code']), fn($q) => $q->where('id', $validated['code']))
+                ->when(!empty($validated['title']), fn($q) => $q->where('title', 'like', '%' . addcslashes($validated['title'], '%_') . '%'))
+                ->when(!empty($validated['start_date']), fn($q) => $q->where('created_at', '>=', Carbon::parse($validated['start_date'])->startOfDay()))
+                ->when(!empty($validated['end_date']), fn($q) => $q->where('created_at', '<=', Carbon::parse($validated['end_date'])->endOfDay()))
+                ->when(isset($validated['min']), fn($q) => $q->has('products', '>=', (int) $validated['min']))
+                ->when(isset($validated['max']), fn($q) => $q->has('products', '<=', (int) $validated['max']))
+                ->orderBy($sortBy, $dir)
+                ->paginate($perPage);
+        });
+
+        // 4. دریافت بیشترین تعداد محصول با ایمنی کامل در برابر جدول خالی
+        // فقط یک عدد Integer را در ردیس کش می‌کنیم (بسیار سبک‌تر از کل شیء Model)
+        $maxProductsCount = Cache::tags(['categories', 'products_stats'])->remember('max_products_count', now()->addHours(6), function () {
+            return (int) (Category::withCount('products')
+                ->orderByDesc('products_count')
+                ->value('products_count') ?? 0);
+        });
 
         return response()->json([
             'categories' => $categories,
-            'category_with_most_products' => $categoryWithMostProducts->products_count
+            'category_with_most_products' => $maxProductsCount,
         ]);
     }
 

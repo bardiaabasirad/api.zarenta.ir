@@ -27,28 +27,85 @@ class ProductController extends Controller
     public function index()
     {
         $marketPrice = MarketPrice::latest()->first();
-        $vat = Setting::where('option_key','value_added_tax')->firstOrFail()->option_value;
+        $vatSetting = Setting::where('option_key', 'value_added_tax')->first();
+        $vat = $vatSetting ? $vatSetting->option_value : 0;
 
-        $sortBy = request()->input('sortBy');
-        $dir = request()->input('dir');
-        $count = request()->input('count')??config('app.per_page');
+        $sortBy = request()->input('sortBy', 'created_at');
+        $dir = request()->input('dir', 'asc');
+        $count = request()->input('count') ?? config('app.per_page');
 
-        $products = Product::query();
+        $marketPriceValue = $marketPrice ? $marketPrice->price : 0;
 
-        $products = $products->select('id','title','created_at')
+        $min = request('price_from');
+        $max = request('price_to');
+
+        // تعریف فرمول محاسباتی final_price به صورت یک متغیر برای جلوگیری از تکرار و خطای تایپی
+        $finalPriceSql = "
+        CASE
+            WHEN varieties.count > 0 THEN
+                CEIL(
+                    (
+                        -- Initial value
+                        ({$marketPriceValue} * varieties.weight) +
+                        -- Sell wage
+                        (
+                            ({$marketPriceValue} * varieties.weight) *
+                            (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
+                            COALESCE(varieties.tomans_sell_wage, 0)
+                        ) +
+                        -- Profit
+                        (
+                            (
+                                ({$marketPriceValue} * varieties.weight) +
+                                (({$marketPriceValue} * varieties.weight) *
+                                (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
+                                COALESCE(varieties.tomans_sell_wage, 0))
+                            ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
+                            COALESCE(varieties.tomans_profit, 0)
+                        ) +
+                        -- VAT (only if product.vat is active)
+                        CASE
+                            WHEN products.vat = 'active' THEN
+                                (
+                                    (
+                                        (({$marketPriceValue} * varieties.weight) *
+                                        (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
+                                        COALESCE(varieties.tomans_sell_wage, 0)) +
+                                        (
+                                            (
+                                                ({$marketPriceValue} * varieties.weight) +
+                                                (({$marketPriceValue} * varieties.weight) *
+                                                (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
+                                                COALESCE(varieties.tomans_sell_wage, 0))
+                                            ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
+                                            COALESCE(varieties.tomans_profit, 0)
+                                        )
+                                    ) * {$vat}
+                                )
+                            ELSE 0
+                        END
+                    ) * (1 - COALESCE(varieties.percentage_discount, 0) / 100) -
+                    COALESCE(varieties.tomans_discount, 0)
+                )
+            ELSE NULL
+        END
+    ";
+
+        $products = Product::query()
+            ->select('products.id', 'products.title', 'products.created_at', 'products.vat')
             ->withCount(['varieties as total_count' => function($query){
                 $query->select(DB::raw('SUM(count)'));
             }])
             ->when(request()->has('code'), function($query){
-                $query->where('id', 'like', '%' . request('code') . '%');
+                $query->where('products.id', 'like', '%' . request('code') . '%');
             })
             ->when(request()->has('title'), function($query){
-                $query->where('title', 'like', '%' . request('title') . '%');
+                $query->where('products.title', 'like', '%' . request('title') . '%');
             })
             ->when(request()->has('start_date') && request()->has('end_date'), function ($query){
                 $startDate = Carbon::parse(request('start_date'))->startOfDay();
                 $endDate = Carbon::parse(request('end_date'))->endOfDay();
-                $query->whereBetween('created_at', [$startDate, $endDate]);
+                $query->whereBetween('products.created_at', [$startDate, $endDate]);
             })
             ->when(request()->has('category_id'), function ($query) {
                 $query->whereHas('categories', function ($subQuery) {
@@ -65,200 +122,43 @@ class ProductController extends Controller
                     $subQuery->where('properties.id', request('property_id'));
                 });
             })
-            ->when(request()->has('price_from') && request()->has('price_to'), function ($query) use ($vat, $marketPrice) {
-                $min = request('price_from');
-                $max = request('price_to');
-
-                // Filter products to only include those with at least one variety where final_price is between min and max
-                $query->whereHas('variety', function ($query) use ($min, $max, $vat, $marketPrice) {
-                    $query->where('count', '>', 0)
-                        ->join('products', 'varieties.product_id', '=', 'products.id')
-                        ->whereRaw("
-                            CASE
-                                WHEN varieties.count > 0 THEN
-                                    CEIL(
-                                        (
-                                            -- Initial value
-                                            ({$marketPrice->price} * varieties.weight) +
-                                            -- Sell wage
-                                            (
-                                                ({$marketPrice->price} * varieties.weight) *
-                                                (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                COALESCE(varieties.tomans_sell_wage, 0)
-                                            ) +
-                                            -- Profit
-                                            (
-                                                (
-                                                    ({$marketPrice->price} * varieties.weight) +
-                                                    (({$marketPrice->price} * varieties.weight) *
-                                                    (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                    COALESCE(varieties.tomans_sell_wage, 0))
-                                                ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
-                                                COALESCE(varieties.tomans_profit, 0)
-                                            ) +
-                                            -- VAT (only if product.vat is active)
-                                            CASE
-                                                WHEN products.vat = 'active' THEN
-                                                    (
-                                                        (
-                                                            (({$marketPrice->price} * varieties.weight) *
-                                                            (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                            COALESCE(varieties.tomans_sell_wage, 0)) +
-                                                            (
-                                                                (
-                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                    (({$marketPrice->price} * varieties.weight) *
-                                                                    (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                                    COALESCE(varieties.tomans_sell_wage, 0))
-                                                                ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
-                                                                COALESCE(varieties.tomans_profit, 0)
-                                                            )
-                                                        ) * {$vat}
-                                                    )
-                                                ELSE 0
-                                            END
-                                        ) * (1 - COALESCE(varieties.percentage_discount, 0) / 100) -
-                                        COALESCE(varieties.tomans_discount, 0)
-                                    )
-                                ELSE NULL
-                            END BETWEEN ? AND ?",
-                            [$min, $max]
-                        );
+            ->when(request()->filled('price_from') && request()->filled('price_to'), function ($query) use ($min, $max, $finalPriceSql) {
+                $query->whereHas('varieties', function ($q) use ($min, $max, $finalPriceSql) {
+                    $q->where('varieties.count', '>', 0)
+                        ->whereRaw("({$finalPriceSql}) BETWEEN ? AND ?", [$min, $max]);
                 });
             })
             ->with([
-                'variety' => function($query) use ($vat, $marketPrice) {
-                    $query->with(['color','images'])
-                        ->where('count', '>', 0)
+                'variety' => function($query) use ($finalPriceSql) {
+                    $query->with(['color', 'images'])
+                        ->where('varieties.count', '>', 0)
                         ->join('products', 'varieties.product_id', '=', 'products.id')
                         ->addSelect([
                             'varieties.*',
-                            'count',
-                            // Add your final_price calculation here as a select statement
-                            DB::raw("
-                                CASE
-                                    WHEN varieties.count > 0 THEN
-                                        CEIL(
-                                            (
-                                                -- Initial value
-                                                ({$marketPrice->price} * varieties.weight) +
-                                                -- Sell wage
-                                                (
-                                                    ({$marketPrice->price} * varieties.weight) *
-                                                    (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                    COALESCE(varieties.tomans_sell_wage, 0)
-                                                ) +
-                                                -- Profit
-                                                (
-                                                    (
-                                                        ({$marketPrice->price} * varieties.weight) +
-                                                        (({$marketPrice->price} * varieties.weight) *
-                                                        (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                        COALESCE(varieties.tomans_sell_wage, 0))
-                                                    ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
-                                                    COALESCE(varieties.tomans_profit, 0)
-                                                ) +
-                                                -- VAT (only if product.vat is active)
-                                                CASE
-                                                    WHEN products.vat = 'active' THEN
-                                                        (
-                                                            (
-                                                                (({$marketPrice->price} * varieties.weight) *
-                                                                (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                                COALESCE(varieties.tomans_sell_wage, 0)) +
-                                                                (
-                                                                    (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
-                                                                        (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                                        COALESCE(varieties.tomans_sell_wage, 0))
-                                                                    ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
-                                                                    COALESCE(varieties.tomans_profit, 0)
-                                                                )
-                                                            ) * {$vat}
-                                                        )
-                                                    ELSE 0
-                                                END
-                                            ) * (1 - COALESCE(varieties.percentage_discount, 0) / 100) -
-                                            COALESCE(varieties.tomans_discount, 0)
-                                        )
-                                    ELSE NULL
-                                END as final_price
-                            "),
+                            DB::raw("({$finalPriceSql}) as final_price")
                         ])
                         ->orderBy('final_price', 'asc');
                 },
-                // اگر تعداد تنوع صفر باشد آنگاه تنوعی برگشت نخواهد خورد و بنابراین تصویری هم برای نمایش دادن نداریم
-                // باید توسط یک رابطه دیگر (imageVariety) بدون شرط تعداد یک تنوع که کمترین قیمت را دارد برگردانیم و تصویر این تنوع را نمایش دهیم
-                'imageVariety' => function($query) use ($vat, $marketPrice) {
+                'imageVariety' => function($query) use ($finalPriceSql) {
                     $query->with(['images'])
                         ->join('products', 'varieties.product_id', '=', 'products.id')
                         ->addSelect([
                             'varieties.*',
-                            'count',
-                            // Add your final_price calculation here as a select statement
-                            DB::raw("
-                                CASE
-                                    WHEN varieties.count > 0 THEN
-                                        CEIL(
-                                            (
-                                                -- Initial value
-                                                ({$marketPrice->price} * varieties.weight) +
-                                                -- Sell wage
-                                                (
-                                                    ({$marketPrice->price} * varieties.weight) *
-                                                    (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                    COALESCE(varieties.tomans_sell_wage, 0)
-                                                ) +
-                                                -- Profit
-                                                (
-                                                    (
-                                                        ({$marketPrice->price} * varieties.weight) +
-                                                        (({$marketPrice->price} * varieties.weight) *
-                                                        (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                        COALESCE(varieties.tomans_sell_wage, 0))
-                                                    ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
-                                                    COALESCE(varieties.tomans_profit, 0)
-                                                ) +
-                                                -- VAT (only if product.vat is active)
-                                                CASE
-                                                    WHEN products.vat = 'active' THEN
-                                                        (
-                                                            (
-                                                                (({$marketPrice->price} * varieties.weight) *
-                                                                (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                                COALESCE(varieties.tomans_sell_wage, 0)) +
-                                                                (
-                                                                    (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
-                                                                        (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
-                                                                        COALESCE(varieties.tomans_sell_wage, 0))
-                                                                    ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
-                                                                    COALESCE(varieties.tomans_profit, 0)
-                                                                )
-                                                            ) * {$vat}
-                                                        )
-                                                    ELSE 0
-                                                END
-                                            ) * (1 - COALESCE(varieties.percentage_discount, 0) / 100) -
-                                            COALESCE(varieties.tomans_discount, 0)
-                                        )
-                                    ELSE NULL
-                                END as final_price
-                            "),
+                            DB::raw("({$finalPriceSql}) as final_price")
                         ])
                         ->orderBy('final_price', 'asc');
                 }
-            ])
-            ->orderBy($sortBy??'created_at', $dir??'asc');
+            ]);
 
-            if (request()->has('pagination') && request()->input('pagination') == 'no'){
-                $products = $products->get();
-            }
-            else{
-                $products = $products->paginate($count);
-            }
+        if ($sortBy === 'created_at') {
+            $products->orderBy('products.created_at', $dir);
+        }
+
+        if (request()->has('pagination') && request()->input('pagination') == 'no'){
+            $products = $products->get();
+        } else {
+            $products = $products->paginate($count);
+        }
 
         return response()->json([
             'products' => $products,

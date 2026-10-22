@@ -21,7 +21,16 @@ class WorkingHourController extends Controller
     public function store(WorkingHourStoreRequest $request)
     {
         $validatedData = $request->validated();
-        $this->syncHour($validatedData['day_of_week'], $validatedData['hour']);
+
+        DB::transaction(function () use ($validatedData) {
+            foreach ($validatedData['changes'] as $change) {
+                $this->applyHour(
+                    $change['day_of_week'],
+                    (int) $change['hour'],
+                    $change['action']
+                );
+            }
+        });
 
         $workingHours = WorkingHour::all();
 
@@ -30,27 +39,29 @@ class WorkingHourController extends Controller
         ]);
     }
 
-    private function syncHour($dayOfWeek, $workingHour)
+    private function applyHour(string $dayOfWeek, int $hour, string $action): void
     {
         $day = WorkingHour::where('day_of_week', $dayOfWeek)->first();
 
-        if ($day) {
-            $workingHours = $day->working_hours;
+        if (!$day) {
+            return;
+        }
 
-            if (!in_array($workingHour, $workingHours)) {
-                // Add $workingHour to the array and sort it
-                $workingHours[] = (int)$workingHour;
+        $workingHours = $day->working_hours ?? [];
+        $workingHours = array_map('intval', $workingHours);
+
+        if ($action === 'add') {
+            if (!in_array($hour, $workingHours, true)) {
+                $workingHours[] = $hour;
                 sort($workingHours);
             }
-            else {
-                // Remove $workingHour from the array and reindex with numerical keys
-                $workingHours = array_values(array_filter($workingHours, function ($hour) use ($workingHour) {
-                    return (int)$hour !== (int)$workingHour;
-                }));
-            }
-
-            // Update the day in the database
-            DB::table('working_hours')->where('day_of_week', $dayOfWeek)->update(['working_hours' => $workingHours]);
+        } else {
+            $workingHours = array_values(array_filter($workingHours, function ($existingHour) use ($hour) {
+                return (int) $existingHour !== $hour;
+            }));
         }
+
+        $day->working_hours = $workingHours;
+        $day->save();
     }
 }

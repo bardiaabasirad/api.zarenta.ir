@@ -10,9 +10,10 @@ class WorkingHourStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'day_of_week'   => ['required','in:' . implode(',', DayOfWeek::classConstants())],
-            'hour'          => ['required','integer','min:0','max:23'],
-            'type'          => ['required','in:add,remove'],
+            'changes'                 => ['required', 'array', 'min:1'],
+            'changes.*.day_of_week'   => ['required', 'in:' . implode(',', DayOfWeek::classConstants())],
+            'changes.*.hour'          => ['required', 'integer', 'min:0', 'max:23'],
+            'changes.*.action'        => ['required', 'in:add,remove'],
         ];
     }
 }

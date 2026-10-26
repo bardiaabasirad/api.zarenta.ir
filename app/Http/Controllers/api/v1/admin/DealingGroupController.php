@@ -4,11 +4,10 @@ namespace App\Http\Controllers\api\v1\admin;
 
 use App\Events\DealingGroupUpdated;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\DealingGroupStoreRequest;
 use App\Http\Requests\DealingGroupUpdateRequest;
-use App\Models\Configs\DealingGroupMetalItemConfig;
 use App\Models\DealingGroup;
 use App\Models\MetalItem;
+use App\Models\Unit;
 use DB;
 use Illuminate\Http\Request;
 
@@ -52,16 +51,14 @@ class DealingGroupController extends Controller
                         'name' => 'درصد',
                     ]
                 ],
-                'display_modes' => [
-                    [
-                        'value' => 'quotation',
-                        'name' => 'مظنه',
-                    ],
-                    [
-                        'value' => 'per_gram',
-                        'name' => 'گرم',
-                    ]
-                ],
+                'target_units' => Unit::query()
+                    ->whereIn('id', ['mazane', 'gram', 'count', 'kilogram', 'ounce', 'ton'])
+                    ->get(['id', 'name'])
+                    ->map(fn (Unit $unit) => [
+                        'value' => $unit->id,
+                        'name' => $unit->name,
+                    ])
+                    ->values(),
             ],
             'items' => MetalItem::all(),
         ]);
@@ -70,8 +67,18 @@ class DealingGroupController extends Controller
     public function show(DealingGroup $group)
     {
         return response()->json([
+            'meta' => [
+                'target_units' => Unit::query()
+                    ->whereIn('id', ['mazane', 'gram', 'count', 'kilogram', 'ounce', 'ton'])
+                    ->get(['id', 'name'])
+                    ->map(fn (Unit $unit) => [
+                        'value' => $unit->id,
+                        'name' => $unit->name,
+                    ])
+                    ->values(),
+            ],
             'group' => $group->load(['metalItems' => function ($query) {
-                $query->orderBy('sort_order', 'asc')->select('id', 'title', 'unit');
+                $query->orderBy('sort_order', 'asc')->select('id', 'title', 'unit', 'pricing_unit_id');
             }])->loadCount('metalTraders'),
             'metal_items' => MetalItem::withoutGlobalScope('visible')->orderBy('sort_order', 'asc')->get(),
         ]);
@@ -85,7 +92,7 @@ class DealingGroupController extends Controller
             'configurations'                    => 'required|array',
             'configurations.*.metal_item_id'    => 'required|exists:metal_items,id',
             'configurations.*.tolerance_type'   => 'required|string',
-            'configurations.*.display_mode'     => 'required|string',
+            'configurations.*.target_unit_id'   => 'required|string|exists:units,id',
             'configurations.*.min_order'        => 'nullable|numeric',
             'configurations.*.max_order'        => 'nullable|numeric',
             'configurations.*.buy_fee_margin'   => 'nullable|numeric',
@@ -101,7 +108,7 @@ class DealingGroupController extends Controller
             foreach ($validated['configurations'] as $config) {
                 $group->metalItems()->attach($config['metal_item_id'], [
                     'tolerance_type'    => $config['tolerance_type'],
-                    'display_mode'      => $config['display_mode'],
+                    'target_unit_id'    => $config['target_unit_id'],
                     'min_order'         => $config['min_order'] ?? null,
                     'max_order'         => $config['max_order'] ?? null,
                     'buy_fee_margin'    => $config['buy_fee_margin'] ?? null,
@@ -127,16 +134,13 @@ class DealingGroupController extends Controller
         ]);
     }
 
-
-
-
     public function updateDealingGroupMetalItem(DealingGroup $group, MetalItem $metalItem, Request $request)
     {
         $group->metalItems()->updateExistingPivot(
             $metalItem->id,
             $request->only([
                 'tolerance_type',
-                'display_mode',
+                'target_unit_id',
                 'min_order',
                 'max_order',
                 'buy_fee_margin',
@@ -156,7 +160,7 @@ class DealingGroupController extends Controller
         $request->validate([
             'metal_item_id'     => 'required|exists:metal_items,id',
             'tolerance_type'    => 'required|string',
-            'display_mode'      => 'required|string',
+            'target_unit_id'    => 'required|string|exists:units,id',
             'min_order'         => 'nullable',
             'max_order'         => 'nullable',
             'buy_fee_margin'    => 'nullable',
@@ -165,7 +169,7 @@ class DealingGroupController extends Controller
 
         $group->metalItems()->attach($request->metal_item_id, [
             'tolerance_type' => $request->tolerance_type,
-            'display_mode' => $request->display_mode,
+            'target_unit_id' => $request->target_unit_id,
             'min_order' => $request->min_order,
             'max_order' => $request->max_order,
             'buy_fee_margin' => $request->buy_fee_margin,
@@ -191,5 +195,4 @@ class DealingGroupController extends Controller
             'group' => $group->load('metalItems')->loadCount('metalTraders'),
         ]);
     }
-
 }

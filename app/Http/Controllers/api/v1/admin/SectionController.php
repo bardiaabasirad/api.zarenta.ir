@@ -12,6 +12,7 @@ use App\Models\Category;
 use App\Models\Directory;
 use App\Models\Product;
 use App\Models\Section;
+use App\Models\Slider;
 use App\Models\Widget;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,9 +30,12 @@ class SectionController extends Controller
     public function create()
     {
         return response()->json([
-            'widgets' => Widget::whereNotIn('type', ['navbar', 'header', 'hero', 'footer'])->get(),
+            'widgets' => Widget::whereNotIn('type', ['navbar', 'header', 'hero', 'footer'])
+                ->whereNotIn('id', Section::where('sectionable_type', Widget::class)->pluck('sectionable_id'))
+                ->get(),
             'categories' => Category::all(),
             'directories' => Directory::all(),
+            'sliders' => Slider::where('is_active', true)->orderBy('name')->get(),
         ]);
     }
 
@@ -121,6 +125,9 @@ class SectionController extends Controller
                 if ($banner){
                     $banner->title = $request->banner['title'];
                     $banner->images = $bannerData;
+                    if ($request->has('banner.layout')) {
+                        $banner->layout = $this->normalizeBannerLayout($request->input('banner.layout'));
+                    }
                     $banner->save();
                 }
 
@@ -207,10 +214,56 @@ class SectionController extends Controller
         $banner->fill([
             'title' => $request->banner['title'],
             'images' => $bannerData,
+            'layout' => $this->normalizeBannerLayout($request->input('banner.layout')),
         ]);
         $banner->save();
 
         return $banner;
+    }
+
+    protected function normalizeBannerLayout($layout): array
+    {
+        $defaults = Banner::DEFAULT_LAYOUT;
+        if (!is_array($layout)) {
+            return $defaults;
+        }
+
+        $mode = $layout['mode'] ?? $defaults['mode'];
+        if (!in_array($mode, [Banner::MODE_IMAGE_LIST, Banner::MODE_BANNER], true)) {
+            $mode = Banner::MODE_IMAGE_LIST;
+        }
+
+        return [
+            'mode' => $mode,
+            'show_title' => filter_var($layout['show_title'] ?? $defaults['show_title'], FILTER_VALIDATE_BOOLEAN),
+            'show_image_text' => filter_var($layout['show_image_text'] ?? $defaults['show_image_text'], FILTER_VALIDATE_BOOLEAN),
+            'rounded' => in_array($layout['rounded'] ?? '', [
+                'rounded-none', 'rounded-sm', 'rounded', 'rounded-md', 'rounded-lg',
+                'rounded-xl', 'rounded-2xl', 'rounded-3xl', 'rounded-full',
+            ], true) ? $layout['rounded'] : $defaults['rounded'],
+            'sizes' => [
+                'sm' => $this->normalizeSizeClass($layout['sizes']['sm'] ?? $defaults['sizes']['sm']),
+                'md' => $this->normalizeSizeClass($layout['sizes']['md'] ?? $defaults['sizes']['md']),
+                'lg' => $this->normalizeSizeClass($layout['sizes']['lg'] ?? $defaults['sizes']['lg']),
+            ],
+            'padding_x' => [
+                'sm' => $this->normalizePaddingClass($layout['padding_x']['sm'] ?? $defaults['padding_x']['sm']),
+                'md' => $this->normalizePaddingClass($layout['padding_x']['md'] ?? $defaults['padding_x']['md']),
+                'lg' => $this->normalizePaddingClass($layout['padding_x']['lg'] ?? $defaults['padding_x']['lg']),
+            ],
+        ];
+    }
+
+    protected function normalizeSizeClass(string $class): string
+    {
+        return in_array($class, Banner::SIZE_OPTIONS, true) ? $class : 'size-16';
+    }
+
+    protected function normalizePaddingClass(string $class): string
+    {
+        $allowed = ['px-0', 'px-2', 'px-4', 'px-6', 'px-8', 'px-10', 'px-12'];
+
+        return in_array($class, $allowed, true) ? $class : 'px-4';
     }
 
     public function get(Section $section)
@@ -222,6 +275,7 @@ class SectionController extends Controller
             'widgets' => Widget::whereNotIn('type', ['navbar', 'header', 'footer'])->get(),
             'categories' => Category::all(),
             'directories' => Directory::all(),
+            'sliders' => Slider::where('is_active', true)->orderBy('name')->get(),
             'products' => Product::active()->get(['id','title'])
         ]);
     }

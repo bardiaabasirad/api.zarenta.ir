@@ -186,7 +186,7 @@ class ClientOrderController extends Controller
             )
         ]
     )]
-    public function store(StoreMetalOrderRequest $request)
+    public function store(StoreMetalOrderRequest $request, \App\Services\MetalPriceQuoteService $quoteService)
     {
         $validated = $request->validated();
 
@@ -262,7 +262,6 @@ class ClientOrderController extends Controller
         $minOrder = $dealingGroupMetalItem->min_order ?? 0.001;
         $maxOrder = $dealingGroupMetalItem->max_order ?? INF;
 
-        // اعتبارسنجی حداقل و حداکثر مقدار سفارش
         if ($quantity < $minOrder) {
             $status = 'rejected';
 
@@ -270,7 +269,7 @@ class ClientOrderController extends Controller
                 'cause' => 'min_weight_requirement',
                 'message' => sprintf(
                     "کمتر بودن مقدار سفارش از حداقل مجاز (%s {$persianUnit})",
-                    rtrim(rtrim($minOrder, '0'), '.')
+                    rtrim(rtrim((string) $minOrder, '0'), '.')
                 ),
                 'min_order' => $minOrder,
             ]);
@@ -281,55 +280,28 @@ class ClientOrderController extends Controller
                 'cause' => 'max_weight_requirement',
                 'message' => sprintf(
                     "بیشتر بودن مقدار سفارش از حداکثر مجاز (%s {$persianUnit})",
-                    rtrim(rtrim($maxOrder, '0'), '.')
+                    rtrim(rtrim((string) $maxOrder, '0'), '.')
                 ),
                 'min_order' => $maxOrder,
             ]);
         }
 
-        if ($action == 'buy') {
-            $rawLatestPrice = $latestPriceObject->sell;
-            $tolerance = $dealingGroupMetalItem->sell_fee_margin ?? 0;
-        } else {
-            $rawLatestPrice = $latestPriceObject->buy;
-            $tolerance = $dealingGroupMetalItem->buy_fee_margin ?? 0;
-        }
+        $latestQuote = $quoteService->quote($latestPriceObject, $dealingGroupMetalItem, $action, $metalItem);
 
-        if ($dealingGroupMetalItem->tolerance_type == 'fixed_amount') {
-            $latestBasePrice = $rawLatestPrice + $tolerance;
-        } else {
-            $latestBasePrice = $rawLatestPrice + ($rawLatestPrice * $tolerance / 100);
-        }
-
-        // ✅ مقایسه مظنه ارسالی با مظنه محاسبه‌شده
-        if ($mazane !== null && $mazane != $latestBasePrice) {
+        if ($mazane !== null && $mazane != $latestQuote['displayed']) {
             return response()->json([
                 'message' => 'مظنه ارسالی با آخرین مظنه بازار مطابقت ندارد.',
                 'errors' => [
                     'mazane' => [
-                        sprintf('مظنه فعلی: %s تومان', number_format($latestBasePrice))
+                        sprintf('مظنه فعلی: %s تومان', number_format($latestQuote['displayed']))
                     ]
                 ],
-                'current_mazane' => $latestBasePrice,
+                'current_mazane' => $latestQuote['displayed'],
                 'submitted_mazane' => $mazane,
             ], 409);
         }
 
-        if ($metalItem->unit == 'count') {
-            if ($action == 'buy') {
-                $latestPrice = roundUpToThousand($latestBasePrice);
-            } else {
-                $latestPrice = roundDownToThousand($latestBasePrice);
-            }
-        } else {
-            if ($action == 'buy') {
-                $latestPrice = roundUpToThousand($latestBasePrice / AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR);
-            } else {
-                $latestPrice = roundDownToThousand($latestBasePrice / AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR);
-            }
-        }
-
-        $amount = $quantity * $latestPrice;
+        $amount = (int) round($quantity * $latestQuote['rounded']);
 
         $payload = [
             'tracking_code' => MetalOrderService::generateTrackingCode(),
@@ -343,13 +315,17 @@ class ClientOrderController extends Controller
                 'name' => $metalItem->title,
                 'metal_item_id' => $metalItem->id,
                 'kimia_product_id' => $metalItem->kimia_product_id,
-                'fee' => $rawLatestPrice,
-                'fee_margin' => $tolerance,
+                'fee' => $latestQuote['fee'],
+                'display_fee' => $latestQuote['displayed'],
+                'fee_margin' => 0,
                 'unit' => $persianUnit,
                 'en_unit' => $metalItem->unit,
                 'quantity' => $quantity,
                 'tolerance_type' => $dealingGroupMetalItem->tolerance_type,
-                'display_mode' => $dealingGroupMetalItem->display_mode,
+                'pricing_unit_id' => $latestQuote['pricing_unit_id'],
+                'target_unit_id' => $latestQuote['target_unit_id'],
+                'target_unit_name' => $latestQuote['target_unit_name'],
+                'display_mode' => $latestQuote['display_mode'],
                 'amount' => $amount,
             ],
         ];

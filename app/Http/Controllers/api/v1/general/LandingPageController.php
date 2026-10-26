@@ -14,7 +14,6 @@ use App\Models\PriceSource;
 use App\Models\Section;
 use App\Models\Setting;
 use App\Models\RawMetalPrice;
-use App\Models\Slider;
 use App\Services\BoardCoinService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -309,6 +308,13 @@ class LandingPageController extends Controller
                             ->limit(16)->get();
                     }
                     break;
+                case 'App\\Models\\Slider':
+                    if ($section->sectionable) {
+                        $section->sectionable->load(['slides' => function ($query) {
+                            $query->where('is_active', true)->orderBy('sort_order');
+                        }]);
+                    }
+                    break;
                 case 'App\\Models\\Directory':
                     $directory = Directory::find($section->sectionable_id);
 
@@ -523,7 +529,6 @@ class LandingPageController extends Controller
 
         return response()->json([
             'sections' => $sections,
-            'slider' => Slider::where('key', 'main_page_slider')->with('slides')->first(),
         ]);
     }
 

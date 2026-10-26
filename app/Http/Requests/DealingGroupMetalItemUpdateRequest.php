@@ -14,6 +14,7 @@ class DealingGroupMetalItemUpdateRequest extends FormRequest
             'min_order' => ['sometimes','required','integer'],
             'max_order' => ['sometimes','required','integer'],
             'tolerance_type' => ['sometimes','in:percentage,fixed_amount'],
+            'target_unit_id' => ['sometimes','required','string','exists:units,id'],
         ];
     }
 

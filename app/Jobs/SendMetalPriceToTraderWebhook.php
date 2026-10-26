@@ -2,7 +2,7 @@
 
 namespace App\Jobs;
 
-use App\Constants\AppConstants;
+use App\Services\MetalPriceService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -85,16 +85,14 @@ class SendMetalPriceToTraderWebhook implements ShouldQueue
 
         [$buy, $sell] = $this->applyFeeMargins($buy, $sell, $config);
 
-        if (($config['display_mode'] ?? 'quotation') === 'per_gram') {
-            $buy = $this->div(
-                $buy,
-                AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR
-            );
+        $pricingUnitId = (string) ($this->pricePayload['pricing_unit_id'] ?? $config['pricing_unit_id'] ?? 'mazane');
+        $targetUnitId = (string) ($config['target_unit_id']
+            ?? ((($config['display_mode'] ?? null) === 'per_gram') ? 'gram' : 'mazane'));
 
-            $sell = $this->div(
-                $sell,
-                AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR
-            );
+        if ($targetUnitId !== $pricingUnitId) {
+            $priceService = app(MetalPriceService::class);
+            $buy = $priceService->convert($buy, $pricingUnitId, $targetUnitId, 6);
+            $sell = $priceService->convert($sell, $pricingUnitId, $targetUnitId, 6);
         }
 
         return [

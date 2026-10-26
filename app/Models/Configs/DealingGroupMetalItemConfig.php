@@ -3,6 +3,7 @@ namespace App\Models\Configs;
 
 use App\Models\MetalItem;
 use App\Models\DealingGroup;
+use App\Models\Unit;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
@@ -14,7 +15,7 @@ class DealingGroupMetalItemConfig extends Pivot
         'dealing_group_id',
         'metal_item_id',
         'tolerance_type',
-        'display_mode',
+        'target_unit_id',
         'min_order',
         'max_order',
         'buy_fee_margin',
@@ -36,5 +37,10 @@ class DealingGroupMetalItemConfig extends Pivot
     public function dealingGroup(): BelongsTo
     {
         return $this->belongsTo(DealingGroup::class);
+    }
+
+    public function targetUnit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class, 'target_unit_id');
     }
 }

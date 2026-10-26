@@ -6,6 +6,7 @@ use App\Events\SettingsChanged;
 use App\Http\Controllers\Controller;
 use App\Models\MetalItem;
 use App\Models\MetalItemGroup;
+use App\Models\Unit;
 use DB;
 use Illuminate\Http\Request;
 
@@ -42,18 +43,7 @@ class MetalItemController extends Controller
     public function create()
     {
         return response()->json([
-            'meta' => [
-                'metal_item_units' => [
-                    [
-                        'value' => 'gram',
-                        'name' => 'گرم',
-                    ],
-                    [
-                        'value' => 'count',
-                        'name' => 'تعداد',
-                    ]
-                ]
-            ],
+            'meta' => $this->metalItemMeta(),
             'metal_item_groups' => MetalItemGroup::all(),
         ]);
     }
@@ -61,22 +51,35 @@ class MetalItemController extends Controller
     public function show(MetalItem $metalItem)
     {
         return response()->json([
-            'meta' => [
-                'metal_item_units' => [
-                    [
-                        'value' => 'gram',
-                        'name' => 'گرم',
-                    ],
-                    [
-                        'value' => 'count',
-                        'name' => 'تعداد',
-                    ]
-                ]
-            ],
+            'meta' => $this->metalItemMeta(),
             'metal_item_groups' => MetalItemGroup::all(),
-            'metal_item' => $metalItem,
+            'metal_item' => $metalItem->load('pricingUnit'),
             'spot_metal_items' => MetalItem::withoutGlobalScope('visible')->where('is_spot', true)->get(['id', 'title']),
         ]);
+    }
+
+    private function metalItemMeta(): array
+    {
+        return [
+            'metal_item_units' => [
+                [
+                    'value' => 'gram',
+                    'name' => 'گرم',
+                ],
+                [
+                    'value' => 'count',
+                    'name' => 'تعداد',
+                ],
+            ],
+            'pricing_units' => Unit::query()
+                ->orderBy('id')
+                ->get(['id', 'name'])
+                ->map(fn (Unit $unit) => [
+                    'value' => $unit->id,
+                    'name' => $unit->name,
+                ])
+                ->values(),
+        ];
     }
 
     public function store(Request $request)
@@ -88,7 +91,8 @@ class MetalItemController extends Controller
             'is_sell_active' => 'required',
             'is_visible' => 'required',
             'purity' => 'required',
-            'unit' => 'required',
+            'unit' => 'required|in:gram,count',
+            'pricing_unit_id' => 'required|string|exists:units,id',
         ], [
             'title.required' => 'عنوان الزامی است',
             'title.min' => 'عنوان باید حداقل ۳ کاراکتر باشد',
@@ -122,6 +126,7 @@ class MetalItemController extends Controller
             'settlement_working_days' => 'sometimes|required|integer|min:0',
             'purity' => 'sometimes|required',
             'unit' => 'sometimes|required|in:gram,count',
+            'pricing_unit_id' => 'sometimes|required|string|exists:units,id',
         ]);
 
         $shouldFireEvent = array_key_exists('is_buy_active', $validated)

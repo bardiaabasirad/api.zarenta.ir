@@ -2,12 +2,9 @@
 
 namespace App\Http\Controllers\api\v1\metalTrader;
 
-use App\Constants\AppConstants;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MetalOrderStoreRequest;
 use App\Http\Resources\MetalOrdersResource;
-use App\Jobs\CheckKimiaBalance;
-use App\Models\MarketHoliday;
 use App\Models\MetalItem;
 use App\Models\MetalOrder;
 use App\Models\MetalTrader;
@@ -15,6 +12,7 @@ use App\Models\SelectedMetalPrice;
 use App\Models\Setting;
 use App\Services\MarketHolidayService;
 use App\Services\MetalOrderService;
+use App\Services\MetalPriceQuoteService;
 use Carbon\Carbon;
 use DB;
 use Illuminate\Support\Facades\Auth;
@@ -70,7 +68,7 @@ class OrderController extends Controller
         ]);
     }
 
-    public function store(MetalOrderStoreRequest $request)
+    public function store(MetalOrderStoreRequest $request, MetalPriceQuoteService $quoteService)
     {
         $metalTrader = Auth::guard('metal-trader-api')->user();
         $quantity = $request->quantity;
@@ -97,75 +95,34 @@ class OrderController extends Controller
         $minOrder = $dealingGroupMetalItem->min_order ?? 0.001;
         $maxOrder = $dealingGroupMetalItem->max_order ?? INF;
 
-        // اعتبارسنجی حداقل و حداکثر مقدار سفارش
         if ($quantity < $minOrder || $quantity > $maxOrder) {
             return response()->json([
                 'message' => "حداقل سفارش قابل ثبت {$minOrder} {$persianUnit} و حداکثر سفارش قابل ثبت {$maxOrder} {$persianUnit} می‌باشد",
             ]);
         }
 
-        if ($action == 'buy') {
-            $rawLatestPrice = $latestPriceObject->sell;
-            $rawWantedPrice = $wantedPriceObject->sell;
-            $tolerance = $dealingGroupMetalItem->sell_fee_margin;
-        } else {
-            $rawLatestPrice = $latestPriceObject->buy;
-            $rawWantedPrice = $wantedPriceObject->buy;
-            $tolerance = $dealingGroupMetalItem->buy_fee_margin;
-        }
-
-        if ($dealingGroupMetalItem->tolerance_type == 'fixed_amount') {
-            $latestBasePrice = $rawLatestPrice + $tolerance;
-            $wantedBasePrice = $rawWantedPrice + $tolerance;
-        } else {
-            $latestBasePrice = $rawLatestPrice + ($rawLatestPrice * $tolerance / 100);
-            $wantedBasePrice = $rawWantedPrice + ($rawWantedPrice * $tolerance / 100);
-        }
-
-        if ($metalItem->unit == 'count') {
-            if ($action == 'buy') {
-                $latestPrice = roundUpToThousand($latestBasePrice);
-                $wantedPrice = roundUpToThousand($wantedBasePrice);
-            } else {
-                $latestPrice = roundDownToThousand($latestBasePrice);
-                $wantedPrice = roundDownToThousand($wantedBasePrice);
-            }
-        } else {
-            if ($action == 'buy') {
-                $latestPrice = roundUpToThousand($latestBasePrice / AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR);
-                $wantedPrice = roundUpToThousand($wantedBasePrice / AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR);
-            } else {
-                $latestPrice = roundDownToThousand($latestBasePrice / AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR);
-                $wantedPrice = roundDownToThousand($wantedBasePrice / AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR);
-            }
-        }
+        $latestQuote = $quoteService->quote($latestPriceObject, $dealingGroupMetalItem, $action, $metalItem);
+        $wantedQuote = $quoteService->quote($wantedPriceObject, $dealingGroupMetalItem, $action, $metalItem);
 
         $extraData = [
             'order_reference' => 'pnl',
             'frozen' => $frozen,
         ];
 
-        // بررسی اینکه نرخ سفارش به صرفه است یا نه
-        // اگر می‌خواهد بخرد و قیمت ارزان‌تر شده که چه بهتر با همان نرخی که خواسته سفارش ثبت شود
-        // اگر می‌خواهد بفروشد و قیمت گران‌تر شده که چه بهتر با همان نرخی که خواسته سفارش ثبت شود
-
         $status = 'pending';
-        $usedPrice = $rawWantedPrice;
-
-        $totalWantedPrice = $quantity * $wantedPrice;
-        $totalLatestPrice = $quantity * $latestPrice;
-
         $newPrice = [];
 
-        // اگر نرخ درخواستی با آخرین نرخ برابر است => حالت عادی
+        $totalWantedPrice = (int) round($quantity * $wantedQuote['rounded']);
+        $totalLatestPrice = (int) round($quantity * $latestQuote['rounded']);
+
         if ($totalLatestPrice != $amount) {
-            // منطق رد یا پذیرش بر اساس نوع سفارش
             $isRejected = ($action === 'buy' && $totalWantedPrice < $totalLatestPrice)
                 || ($action === 'sell' && $totalWantedPrice > $totalLatestPrice);
 
             if ($isRejected) {
                 $newPrice = [
-                    'new_fee' => $rawLatestPrice,
+                    'new_fee' => $latestQuote['fee'],
+                    'new_display_fee' => $latestQuote['displayed'],
                 ];
                 $extraData = array_merge($extraData, [
                     'cause' => 'price_difference',
@@ -178,18 +135,6 @@ class OrderController extends Controller
                 $status = 'rejected';
             }
         }
-
-        /**
-         * settlement_type ENUM('spot', 'tomorrow', 'next_day', 'custom_date') NOT NULL DEFAULT 'spot'
-         */
-        /**
-         * settlement_date DATE NOT NULL
-         * تاریخ دقیق تسویه (مثلاً امروز، فردا یا ۶ مهر)
-         */
-        /**
-         * required_collateral_irr DECIMAL(20, 2) NOT NULL
-         * کل ارزش تومانی ضمانت مورد نیاز (مثلاً ۱۰٪ ارزش معامله)
-         */
 
         $payload = [
             'tracking_code' => MetalOrderService::generateTrackingCode(),
@@ -204,19 +149,23 @@ class OrderController extends Controller
             'product' => [
                 ...$newPrice,
                 'name' => $metalItem->title,
-                'fee' => $usedPrice,
-                'fee_margin' => $tolerance,
-                'unit' => $metalItem->unit == 'gram' ? 'گرم' : 'عدد',
+                'metal_item_id' => $metalItem->id,
+                'fee' => $wantedQuote['fee'],
+                'display_fee' => $wantedQuote['displayed'],
+                'fee_margin' => 0,
+                'unit' => $persianUnit,
                 'en_unit' => $metalItem->unit,
                 'quantity' => $quantity,
                 'tolerance_type' => $dealingGroupMetalItem->tolerance_type,
-                'display_mode' => $dealingGroupMetalItem->display_mode,
+                'pricing_unit_id' => $wantedQuote['pricing_unit_id'],
+                'target_unit_id' => $wantedQuote['target_unit_id'],
+                'target_unit_name' => $wantedQuote['target_unit_name'],
+                'display_mode' => $wantedQuote['display_mode'],
                 'amount' => $amount,
             ],
         ];
 
-        $order = DB::transaction(function () use ($payload, $metalTrader, $amount) {
-
+        $order = DB::transaction(function () use ($payload) {
             $order = MetalOrder::create($payload);
             $order->updateProductFee();
 

@@ -16,7 +16,7 @@ class DealingGroup extends Model
             ->using(DealingGroupMetalItemConfig::class)
             ->withPivot([
                 'tolerance_type',
-                'display_mode',
+                'target_unit_id',
                 'min_order',
                 'max_order',
                 'buy_fee_margin',

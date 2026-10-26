@@ -39,11 +39,13 @@ class Slide extends Model
         return $this->belongsTo(Slider::class);
     }
 
-    // Accessor برای ساخت لینک مستقیم فایل
+    // Accessor برای ساخت لینک مستقیم فایل دسکتاپ
     protected function imageUrl(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->image_path ? Storage::disk('public')->url($this->image_path) : null,
+            get: fn () => $this->image_path_desktop
+                ? Storage::disk('public')->url($this->image_path_desktop)
+                : null,
         );
     }
 }

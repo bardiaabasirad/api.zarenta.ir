@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers\api\v1\external;
 
-use App\Constants\AppConstants;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\ClientPriceResource;
 use App\Models\DealingGroup;
-use App\Models\MarketPrice;
 use App\Models\SelectedMetalPrice;
 use App\Models\Setting;
+use App\Services\MetalPriceService;
 use OpenApi\Attributes as OA;
 
 class ClientMarketController extends Controller
@@ -85,6 +83,7 @@ class ClientMarketController extends Controller
                 'metal_items.is_sell_active',
                 'metal_items.metal_item_group_id',
                 'metal_items.sort_order',
+                'metal_items.pricing_unit_id',
                 'selected_metal_prices.buy',
                 'selected_metal_prices.sell',
                 'selected_metal_prices.time',
@@ -94,6 +93,7 @@ class ClientMarketController extends Controller
             ->get()
             ->map(function ($row) use ($configs) {
                 $cfg = $configs[$row->product_id];
+                $priceService = app(MetalPriceService::class);
 
                 //------------------------------------------------------
                 // 1) اعمال tolerance_type
@@ -112,12 +112,20 @@ class ClientMarketController extends Controller
                 }
 
                 //------------------------------------------------------
-                // 2) اعمال display_mode
+                // 2) تبدیل واحد نمایش
                 //------------------------------------------------------
-                if ($cfg->display_mode === 'per_gram') {
-                    $factor = AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR;
-                    $buy  = roundDownToThousand($buy  / $factor);
-                    $sell = roundUpToThousand($sell / $factor);
+                $pricingUnitId = $row->pricing_unit_id ?? 'mazane';
+                $targetUnitId = $cfg->target_unit_id
+                    ?? $priceService->fromLegacyDisplayMode($cfg->display_mode ?? 'quotation');
+
+                if ($targetUnitId !== $pricingUnitId) {
+                    $buy = (float) $priceService->convert((string) $buy, $pricingUnitId, $targetUnitId, 6);
+                    $sell = (float) $priceService->convert((string) $sell, $pricingUnitId, $targetUnitId, 6);
+                }
+
+                if ($targetUnitId === 'gram') {
+                    $buy  = roundDownToThousand($buy);
+                    $sell = roundUpToThousand($sell);
                 }
 
                 //------------------------------------------------------

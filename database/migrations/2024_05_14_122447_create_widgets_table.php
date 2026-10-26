@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('widgets', function (Blueprint $table) {
             $table->id();
             $table->string('title');
-            $table->enum('type',['navbar','header','footer','hero','last_products']);
+            $table->enum('type',['navbar','header','footer','hero','last_products','search']);
         });
     }
 

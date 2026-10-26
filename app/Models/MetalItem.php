@@ -27,12 +27,18 @@ class MetalItem extends Model
         return $this->belongsTo(MetalItemGroup::class, 'metal_item_group_id');
     }
 
+    public function pricingUnit()
+    {
+        return $this->belongsTo(Unit::class, 'pricing_unit_id');
+    }
+
     public function dealingGroups()
     {
         return $this->belongsToMany(DealingGroup::class, 'dealing_group_metal_item')
             ->using(DealingGroupMetalItemConfig::class)
             ->withPivot([
                 'tolerance_type',
+                'target_unit_id',
                 'min_order',
                 'max_order',
                 'buy_fee_margin',

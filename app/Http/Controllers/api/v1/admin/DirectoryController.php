@@ -103,15 +103,25 @@ class DirectoryController extends Controller
 
     public function changeOrder(Request $request)
     {
-        $pivot_1 = json_decode($request->pivot_1);
-        DB::table('directory_product')->where('directory_id', $pivot_1->directory_id)->where('product_id', $pivot_1->product_id)->update([
-           'order' => $pivot_1->order
+        $request->validate([
+            'directory_id' => ['required', 'exists:directories,id'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer'],
+            'items.*.order' => ['required', 'integer'],
         ]);
 
-        $pivot_2 = json_decode($request->pivot_2);
-        DB::table('directory_product')->where('directory_id', $pivot_2->directory_id)->where('product_id', $pivot_2->product_id)->update([
-           'order' => $pivot_2->order
-        ]);
+        $directoryId = (int) $request->input('directory_id');
+
+        DB::transaction(function () use ($request, $directoryId) {
+            foreach ($request->input('items') as $item) {
+                DB::table('directory_product')
+                    ->where('directory_id', $directoryId)
+                    ->where('product_id', $item['product_id'])
+                    ->update([
+                        'order' => $item['order'],
+                    ]);
+            }
+        });
 
         return response()->json([
             'message' => trans('messages.order_of_sections_updated_successfully'),

@@ -27,10 +27,10 @@ class BoardCoinService
                     'is_buy_active'  => $coin->metalItem->is_buy_active,
                     'is_sell_active' => $coin->metalItem->is_sell_active,
                     'title'          => $coin->metalItem->title,
-                    'sell'           => $price->sell ? (int) $price->sell + (int) $coin->sell_tolerance : null,
-                    'prev_sell'      => $prevPrice ? (int) $prevPrice->sell + (int) $coin->sell_tolerance : null,
-                    'created_at'     => $price->created_at,
-                    'updated_at'     => $price->updated_at,
+                    'sell'           => $price && $price->sell ? (int) $price->sell + (int) $coin->sell_tolerance : null,
+                    'prev_sell'      => $prevPrice && $prevPrice->sell ? (int) $prevPrice->sell + (int) $coin->sell_tolerance : null,
+                    'created_at'     => $price?->created_at,
+                    'updated_at'     => $price?->updated_at,
                 ];
             });
     }
@@ -52,12 +52,12 @@ class BoardCoinService
                     'is_buy_active'  => $coin->metalItem->is_buy_active,
                     'is_sell_active' => $coin->metalItem->is_sell_active,
                     'title'          => $coin->metalItem->title,
-                    'buy'            => $price->buy ? (int) $price->buy + (int) $coin->buy_tolerance : null,
-                    'sell'           => $price->sell ? (int) $price->sell + (int) $coin->sell_tolerance : null,
+                    'buy'            => $price && $price->buy ? (int) $price->buy + (int) $coin->buy_tolerance : null,
+                    'sell'           => $price && $price->sell ? (int) $price->sell + (int) $coin->sell_tolerance : null,
                     'prev_buy'       => $prevPrice && $prevPrice->buy ? (int) $prevPrice->buy + (int) $coin->buy_tolerance : null,
                     'prev_sell'      => $prevPrice && $prevPrice->sell ? (int) $prevPrice->sell + (int) $coin->sell_tolerance : null,
-                    'created_at'     => $price->created_at,
-                    'updated_at'     => $price->updated_at,
+                    'created_at'     => $price?->created_at,
+                    'updated_at'     => $price?->updated_at,
                 ];
             });
     }

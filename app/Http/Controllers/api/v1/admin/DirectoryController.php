@@ -122,7 +122,7 @@ class DirectoryController extends Controller
     {
         $sortBy = request()->input('sortBy');
         $dir = request()->input('dir');
-        $count = request()->input('count')??config('app.per_page');
+        $count = request()->input('count') ?? config('app.per_page');
         $code = request()->input('code');
         $title = request()->input('title');
         $min = request()->input('min');
@@ -130,16 +130,18 @@ class DirectoryController extends Controller
         $start_date = request()->input('start_date');
         $end_date = request()->input('end_date');
 
-        $directories = Directory::query();
-
-        $directories = $directories->select('id','title','created_at')
-            ->when(isset($code), function ($query) use ($code){
-                $query->where('id', 'like', '%' .$code . '%');
+        // ۱. بهینه‌سازی کوئری اصلی با استفاده از withCount قبل از شرط‌های having
+        // (نکته: در لاراول برای فیلتر کردن روی ستون‌های count شده، حتماً باید withCount قبل از having صدا زده بشه)
+        $directories = Directory::query()
+            ->select('id', 'title', 'created_at')
+            ->withCount(['products as products_count']) // اول withCount رو صدا می‌زنیم
+            ->when(isset($code), function ($query) use ($code) {
+                $query->where('id', 'like', '%' . $code . '%');
             })
-            ->when(isset($title), function ($query) use ($title){
+            ->when(isset($title), function ($query) use ($title) {
                 $query->where('title', 'like', '%' . $title . '%');
             })
-            ->when(isset($start_date) && isset($end_date), function ($query) use ($start_date, $end_date){
+            ->when(isset($start_date) && isset($end_date), function ($query) use ($start_date, $end_date) {
                 $startDate = Carbon::parse($start_date)->startOfDay();
                 $endDate = Carbon::parse($end_date)->endOfDay();
                 $query->whereBetween('created_at', [$startDate, $endDate]);
@@ -150,16 +152,18 @@ class DirectoryController extends Controller
             ->when(isset($max), function ($query) use ($max) {
                 $query->having('products_count', '<=', $max);
             })
-            ->withCount(['products as products_count'])
-            ->orderBy($sortBy??'created_at', $dir??'asc')->paginate($count);
+            ->orderBy($sortBy ?? 'created_at', $dir ?? 'asc')
+            ->paginate($count);
 
+        // ۲. حل مشکل null بودن با استفاده از nullsafe operator یا مقدار پیش‌فرض
         $directoryWithMostProducts = Directory::withCount('products')
             ->orderBy('products_count', 'desc')
             ->first();
 
         return response()->json([
             'directories' => $directories,
-            'directory_with_most_products' => $directoryWithMostProducts->products_count
+            // اگر رکورد وجود نداشت، مقدار 0 رو برمی‌گردونیم تا به خطا نخوریم
+            'directory_with_most_products' => $directoryWithMostProducts?->products_count ?? 0
         ]);
     }
 

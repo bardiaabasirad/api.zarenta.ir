@@ -82,10 +82,10 @@ class ProcessGoldOrderExchanges extends Command
 
         $exchangeId  = $orderExchange->autoOrderExchange->exchange_id;
         $deliveryMap = $this->deliveryMappingByExchange[$exchangeId] ?? null;
-        $product     = $metalOrder->product;
+        $productName = $metalOrder->product_name;
 
-        if (!$deliveryMap || !isset($deliveryMap[$product['name']])) {
-            $this->markAsError($orderExchange, "محصول '{$product['name']}' برای صرافی '{$exchangeId}' پشتیبانی نمی‌شود");
+        if (!$deliveryMap || !isset($deliveryMap[$productName])) {
+            $this->markAsError($orderExchange, "محصول '{$productName}' برای صرافی '{$exchangeId}' پشتیبانی نمی‌شود");
             return;
         }
 
@@ -93,9 +93,9 @@ class ProcessGoldOrderExchanges extends Command
             'tomorrow_spot_settlement'           => AppConstants::TOMORROW,
             'day_after_tomorrow_spot_settlement' => AppConstants::DAY_AFTER_TOMORROW,
         ];
-        $type = $typeMap[$metalOrder->product['name']] ?? null;
+        $type = $typeMap[$productName] ?? null;
         if (!$type) {
-            $this->markAsError($orderExchange, "نوع محصول '{$metalOrder->product['name']}' ناشناخته است");
+            $this->markAsError($orderExchange, "نوع محصول '{$productName}' ناشناخته است");
             return;
         }
 
@@ -104,7 +104,7 @@ class ProcessGoldOrderExchanges extends Command
         try {
             $methodName = 'processExchange_' . $exchangeId;
             if (method_exists($this, $methodName)) {
-                $this->$methodName($metalOrder, $orderExchange, $deliveryMap[$product['name']]);
+                $this->$methodName($metalOrder, $orderExchange, $deliveryMap[$productName]);
             } else {
                 $this->markAsError($orderExchange, "صرافی '{$exchangeId}' هنوز پشتیبانی نمی‌شود");
             }
@@ -118,7 +118,7 @@ class ProcessGoldOrderExchanges extends Command
      */
     protected function processExchange_darina($metalOrder, $orderExchange, $delivery)
     {
-        $rate = floatval($metalOrder->product['fee']) + floatval($metalOrder->product['fee_margin']);
+        $rate = floatval($metalOrder->fee);
 
         try {
             // حالت کاملاً Async: ارسال بدون انتظار پاسخ
@@ -127,7 +127,7 @@ class ProcessGoldOrderExchanges extends Command
                 'rate'     => $rate,
                 'action'   => $metalOrder->order_type,
                 'delivery' => $delivery,
-                'amount'   => $metalOrder->product['quantity'],
+                'amount'   => $metalOrder->qty,
             ]);
 
             $orderExchange->update([
@@ -147,14 +147,14 @@ class ProcessGoldOrderExchanges extends Command
      */
     protected function processExchange_hajiabdolahi($metalOrder, $orderExchange, $delivery)
     {
-        $rate = floatval($metalOrder->product['fee']) + floatval($metalOrder->product['fee_margin']);
+        $rate = floatval($metalOrder->fee);
         try {
             Http::withOptions(['stream' => true])->post('http://localhost:3000/order', [
                 'order_id' => $orderExchange->id,
                 'rate'     => $rate,
                 'action'   => $metalOrder->order_type,
                 'delivery' => $delivery,
-                'amount'   => $metalOrder->product['quantity'],
+                'amount'   => $metalOrder->qty,
             ]);
 
             $orderExchange->update([

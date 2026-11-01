@@ -38,6 +38,7 @@ class NotificationCreated implements ShouldBroadcastNow
             'id' => $this->notification->id,
             'title' => $this->notification->title,
             'content' => $this->notification->content,
+            'link' => $this->notification->link,
             'created_at' => $this->notification->created_at,
         ];
     }

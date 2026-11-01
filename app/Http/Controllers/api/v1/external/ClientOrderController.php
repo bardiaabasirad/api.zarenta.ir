@@ -38,8 +38,6 @@ class ClientOrderController extends Controller
             ->orderBy($sortBy, $dir)
             ->simplePaginate($count);
 
-        $orders->getCollection()->each(fn($order) => $order->updateProductFee());
-
         return response()->json(ExternalClientOrdersResource::collection($orders));
     }
 
@@ -127,7 +125,6 @@ class ClientOrderController extends Controller
         // برای تک سفارش
         if ($request->filled('order_id') || $request->filled('source_order_id')) {
             $metalOrder = $query->firstOrFail();
-            $metalOrder->updateProductFee();
 
             return response()->json(ExternalClientOrdersResource::make($metalOrder));
         }
@@ -141,10 +138,6 @@ class ClientOrderController extends Controller
                 'message' => 'هیچ سفارشی با مشخصات ارسالی یافت نشد',
             ], 404);
         }
-
-        $orders->each(function ($order) {
-            $order->updateProductFee();
-        });
 
         return response()->json(ExternalClientOrdersResource::collection($orders));
     }
@@ -307,27 +300,21 @@ class ClientOrderController extends Controller
             'tracking_code' => MetalOrderService::generateTrackingCode(),
             'source_order_id' => $order_id,
             'created_id' => $metalTrader->id,
+            'metal_item_id' => $metalItem->id,
             'created_type' => (new MetalTrader())->getMorphClass(),
             'order_type' => $action,
             'status' => $status,
-            'extra_data' => $extraData,
-            'product' => [
-                'name' => $metalItem->title,
-                'metal_item_id' => $metalItem->id,
-                'kimia_product_id' => $metalItem->kimia_product_id,
-                'fee' => $latestQuote['fee'],
+            'extra_data' => array_merge($extraData, [
                 'display_fee' => $latestQuote['displayed'],
-                'fee_margin' => 0,
-                'unit' => $persianUnit,
-                'en_unit' => $metalItem->unit,
-                'quantity' => $quantity,
-                'tolerance_type' => $dealingGroupMetalItem->tolerance_type,
-                'pricing_unit_id' => $latestQuote['pricing_unit_id'],
-                'target_unit_id' => $latestQuote['target_unit_id'],
-                'target_unit_name' => $latestQuote['target_unit_name'],
-                'display_mode' => $latestQuote['display_mode'],
-                'amount' => $amount,
-            ],
+            ]),
+            'product_name' => $metalItem->title,
+            'qty' => $quantity,
+            'unit' => $metalItem->unit,
+            // Quote fee already includes dealing-group fee_margin.
+            'fee' => $latestQuote['fee'],
+            'amount' => $amount,
+            'pricing_unit_id' => $latestQuote['pricing_unit_id'],
+            'target_unit_id' => $latestQuote['target_unit_id'],
         ];
 
         $order = DB::transaction(function () use ($payload, $metalTrader, $amount) {

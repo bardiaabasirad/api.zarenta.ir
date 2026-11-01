@@ -4,9 +4,9 @@ namespace App\Enums;
 
 class BankAccountStatus
 {
-    const CHECKING = 'checking';
-    const CONFIRMED = 'confirmed';
-    const REJECTED = 'rejected';
+    public const PENDING = 'pending';
+    public const APPROVED = 'approved';
+    public const REJECTED = 'rejected';
 
     public static function classConstants()
     {

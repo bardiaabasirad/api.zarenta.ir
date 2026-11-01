@@ -70,8 +70,7 @@ class SubmitHamtalaOrder implements ShouldQueue
             $preparedData
         );
 
-        $effective = $this->metalOrder->computeEffectiveFee();
-        $fee = $effective['fee'];
+        $fee = $this->metalOrder->fee;
 
         $buyOrSell = (int)data_get($preparedData, 'buy_or_sell');
         $mazane = (float)data_get($payload, 'mazane');

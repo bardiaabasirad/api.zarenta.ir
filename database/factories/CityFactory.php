@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\Admin;
 use App\Models\Brand;
 use App\Models\Color;
 use App\Models\Product;

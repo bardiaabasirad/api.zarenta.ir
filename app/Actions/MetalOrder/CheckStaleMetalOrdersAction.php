@@ -160,6 +160,41 @@ class CheckStaleMetalOrdersAction
 
     private function submitClaimedOrder(MetalOrder $metalOrder): void
     {
+        // خرید: موتور پوشش خزانه/همکار (کسری باز؛ بدون auto-reject روی شکست همکار)
+        if ($metalOrder->order_type === 'buy') {
+            try {
+                app(\App\Services\Metal\MetalOrderCoverageService::class)
+                    ->coverBuyOrder($metalOrder, 'stale-cover:' . $metalOrder->id, true);
+
+                Log::channel('checkStaleMetalOrders')->info('Buy order coverage attempted', [
+                    'metal_order_id' => $metalOrder->id,
+                    'coverage_status' => $metalOrder->fresh()->coverage_status,
+                    'open_qty' => $metalOrder->fresh()->open_qty,
+                ]);
+            } catch (\Throwable $e) {
+                Log::channel('checkStaleMetalOrders')->error('Coverage engine failed', [
+                    'metal_order_id' => $metalOrder->id,
+                    'message' => $e->getMessage(),
+                ]);
+                // سفارش reject نمی‌شود؛ کسری برای ادمین باز می‌ماند
+                try {
+                    $coverage = app(\App\Services\Metal\MetalOrderCoverageService::class);
+                    $coverage->initializeCoverageFields($metalOrder->fresh());
+                    $order = $coverage->refreshCoverageCaches($metalOrder->fresh());
+                    $order->last_partner_error = mb_substr($e->getMessage(), 0, 500);
+                    $order->last_coverage_attempt_at = Carbon::now();
+                    $order->save();
+                } catch (\Throwable $inner) {
+                    Log::channel('checkStaleMetalOrders')->error('Failed to persist coverage error', [
+                        'metal_order_id' => $metalOrder->id,
+                        'message' => $inner->getMessage(),
+                    ]);
+                }
+            }
+
+            return;
+        }
+
         $service = $this->hamtalaOrderExchangeService;
 
         try {

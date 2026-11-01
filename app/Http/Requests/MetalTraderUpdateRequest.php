@@ -13,7 +13,7 @@ class MetalTraderUpdateRequest extends FormRequest
             'dealing_group_id' => ['sometimes', 'nullable','exists:dealing_groups,id'],
             'kimi_account_id' => ['sometimes','max:255'],
             'trade_leverage' => ['sometimes','nullable','integer','min:1','max:255'],
-            'phone' => ['sometimes','required','regex:/^9\d{9}$/','unique:metal_traders,phone,' . $this->metal_trader->id],
+            'phone' => ['sometimes','required','regex:/^9\d{9}$/','unique:users,phone,' . $this->metal_trader->user_id],
             'api_key' => ['sometimes','required','max:32'],
             'min_order' => ['sometimes','required'],
             'max_order' => ['sometimes','required'],

@@ -2,6 +2,7 @@ const { ensureLoggedIn } = require("../auth-service");
 const { generateRequestHash } = require("../utils/hash.util");
 const { isDiffMoreThan } = require("../utils/validation.util");
 const RateService = require("./rate.service");
+const { agentLog } = require("../utils/debug-agent.util");
 
 /**
  * ✅ Ultra-fast state
@@ -164,8 +165,11 @@ class CardScraperService {
 
                         // ۳. فیلتر کردن تغییر قیمت‌های ناگهانی و نامتعارف (noise/error)
                         if (prev) {
+                            const buyMissing = !item.buy || !prev.buy;
+                            const sellMissing = !item.sell || !prev.sell;
+
                             const buyHasBigDifferent =
-                                !item.buy || !prev.buy
+                                buyMissing
                                     ? item.buy === prev.buy
                                     : isDiffMoreThan(
                                         prev.buy,
@@ -174,7 +178,7 @@ class CardScraperService {
                                     );
 
                             const sellHasBigDifferent =
-                                !item.sell || !prev.sell
+                                sellMissing
                                     ? item.sell === prev.sell
                                     : isDiffMoreThan(
                                         prev.sell,
@@ -183,6 +187,35 @@ class CardScraperService {
                                     );
 
                             if (buyHasBigDifferent || sellHasBigDifferent) {
+                                // #region agent log
+                                agentLog(
+                                    "card-scraper.service.js:priceSkip",
+                                    "Price change skipped by threshold filter",
+                                    {
+                                        key,
+                                        prevBuy: prev.buy,
+                                        prevSell: prev.sell,
+                                        currBuy: item.buy,
+                                        currSell: item.sell,
+                                        buyMissing,
+                                        sellMissing,
+                                        buyHasBigDifferent,
+                                        sellHasBigDifferent,
+                                        bothSellNull:
+                                            prev.sell == null && item.sell == null,
+                                        bothBuyNull:
+                                            prev.buy == null && item.buy == null,
+                                        nullEqualsNullTrap:
+                                            (sellMissing &&
+                                                prev.sell == null &&
+                                                item.sell == null) ||
+                                            (buyMissing &&
+                                                prev.buy == null &&
+                                                item.buy == null),
+                                    },
+                                    "C"
+                                );
+                                // #endregion
                                 console.warn(
                                     `⚠️ Price change too high, skipped: Key=${key} | ` +
                                     `Prev: B=${prev.buy}/S=${prev.sell} | ` +
@@ -208,7 +241,21 @@ class CardScraperService {
                     }
                 }
 
-                if (formattedData.length === 0) return;
+                if (formattedData.length === 0) {
+                    // #region agent log
+                    agentLog(
+                        "card-scraper.service.js:emptyBatch",
+                        "No rates queued after filters (possible full skip lock)",
+                        {
+                            cardIndex,
+                            trigger,
+                            itemCount: section.items.length,
+                        },
+                        "C"
+                    );
+                    // #endregion
+                    return;
+                }
 
                 const wasSent = await this.rateService.sendRateToServer({
                     formattedData,

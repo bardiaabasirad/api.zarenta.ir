@@ -12,7 +12,7 @@ class StoreAdminRequest extends FormRequest
         return [
             'full_name' => 'required|string|max:255',
             'national_code' => ['required','numeric','digits:10'],
-            'phone' => ['required','regex:/^(\+989|989|09|9)\d{9}$/','unique:admins'],
+            'phone' => ['required','regex:/^(\+989|989|09|9)\d{9}$/','unique:users'],
             'password' => 'required|string|min:8|max:255|confirmed',
             'status' => ['required','in:' . implode(',', UserStatus::classConstants())],
             'roles' => 'sometimes|array',

@@ -10,7 +10,7 @@ class MetalTraderStoreRequest extends FormRequest
     {
         return [
             'name' => ['required','max:255'],
-            'phone' => ['required','regex:/^9\d{9}$/','unique:metal_traders,phone'],
+            'phone' => ['required','regex:/^9\d{9}$/','unique:users,phone'],
             'kimi_account_id' => ['sometimes','nullable'],
             'trade_leverage' => ['sometimes','nullable','integer','min:1','max:255'],
             'dealing_group_id' => ['sometimes','nullable','exists:dealing_groups,id'],

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Observers\MetalOrderObserver;
+use App\Services\MetalPriceService;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -15,9 +16,17 @@ class MetalOrder extends Model
 
     protected $casts = [
         'extra_data' => 'array',
-        'product' => 'array',
         'settlement_date' => 'date:Y-m-d',
+        'coverage_deadline' => 'date:Y-m-d',
+        'last_coverage_attempt_at' => 'datetime',
+        'qty' => 'float',
+        'fee' => 'float',
+        'amount' => 'float',
+        'covered_qty' => 'string',
+        'open_qty' => 'string',
     ];
+
+    protected $appends = ['product'];
 
     protected function serializeDate(DateTimeInterface $date)
     {
@@ -40,6 +49,67 @@ class MetalOrder extends Model
         );
     }
 
+    /**
+     * Virtual product payload for API/UI backward compatibility.
+     * fee is already final (fee_margin applied at order creation).
+     */
+    public function product(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $extra = $this->extra_data ?? [];
+                $unitName = Unit::cached((string) ($this->unit ?? ''))?->name;
+                $targetUnitName = Unit::cached((string) ($this->target_unit_id ?? ''))?->name;
+                $displayMode = $this->target_unit_id
+                    ? app(MetalPriceService::class)->toLegacyDisplayMode((string) $this->target_unit_id)
+                    : null;
+
+                $data = [
+                    'name' => $this->product_name,
+                    'metal_item_id' => $this->metal_item_id,
+                    'fee' => $this->fee,
+                    'display_fee' => $extra['display_fee'] ?? $this->fee,
+                    'unit' => $unitName ?? $this->unit,
+                    'en_unit' => $this->unit,
+                    'quantity' => $this->qty,
+                    'pricing_unit_id' => $this->pricing_unit_id,
+                    'target_unit_id' => $this->target_unit_id,
+                    'target_unit_name' => $targetUnitName,
+                    'display_mode' => $displayMode,
+                    'amount' => $this->amount,
+                ];
+
+                if (isset($extra['new_fee'])) {
+                    $data['new_fee'] = $extra['new_fee'];
+                }
+
+                if (isset($extra['new_display_fee'])) {
+                    $data['new_display_fee'] = $extra['new_display_fee'];
+                }
+
+                return $data;
+            },
+        );
+    }
+
+    /**
+     * Apply fee_margin onto fee once, at order registration time.
+     */
+    public static function finalizeFee(
+        float|int|string $fee,
+        float|int|string $feeMargin = 0,
+        ?string $toleranceType = 'fixed_amount'
+    ): float {
+        $fee = (float) $fee;
+        $feeMargin = (float) $feeMargin;
+
+        if ($toleranceType === 'percentage') {
+            return $fee + ($fee * $feeMargin / 100);
+        }
+
+        return $fee + $feeMargin;
+    }
+
     public function isFinalized(): bool
     {
         return in_array($this->status, ['succeed', 'rejected']);
@@ -50,108 +120,19 @@ class MetalOrder extends Model
         return $this->belongsTo(MetalItem::class, 'metal_item_id');
     }
 
-    public function product(): Attribute
+    public function pricingUnit()
     {
-        return Attribute::make(
-            get: function ($value) {
-                $array = json_decode($value, true);
+        return $this->belongsTo(Unit::class, 'pricing_unit_id');
+    }
 
-                if (isset($array['product']) && is_string($array['product'])) {
-                    $decodedExtraData = json_decode($array['product'], true);
-                    $array['product'] = $decodedExtraData ?? $array['product'];
-                }
-
-                return $array;
-            },
-        );
+    public function targetUnit()
+    {
+        return $this->belongsTo(Unit::class, 'target_unit_id');
     }
 
     public function leverageCheck()
     {
         return $this->hasOne(MetalOrderLeverageCheck::class);
-    }
-
-    public function updateProductFee(): self
-    {
-        $this->updateArrayField('product', function ($product) {
-
-            if (isset($product['tolerance_type']) && $product['tolerance_type'] == 'percentage') {
-                // اگر هم fee و هم fee_margin وجود داشته باشد
-                if (isset($product['fee']) && isset($product['fee_margin'])) {
-                    $product['fee'] = $product['fee'] + $product['fee'] * $product['fee_margin'] / 100;
-                    if (isset($product['new_fee'])) {
-                        $product['new_fee'] = $product['new_fee'] + $product['new_fee'] * $product['fee_margin'] / 100;
-                    }
-                }
-            } else {
-                // اگر هم fee و هم fee_margin وجود داشته باشد
-                if (isset($product['fee']) && isset($product['fee_margin'])) {
-                    $product['fee'] = $product['fee'] + $product['fee_margin'];
-                    if (isset($product['new_fee'])) {
-                        $product['new_fee'] = $product['new_fee'] + $product['fee_margin'];
-                    }
-                }
-            }
-
-            // حذف fee_margin در هر صورت
-            unset($product['fee_margin']);
-
-            return $product;
-        });
-
-        return $this;
-    }
-
-    /**
-     * محاسبه‌ی fee نهایی (اعمال fee_margin) بدون تغییر state مدل.
-     * این متد pure است: هیچ چیزی را persist یا حذف نمی‌کند و برای فراخوانی
-     * چندباره (retry) امن است.
-     *
-     * @return array{fee: float|null, new_fee: float|null}
-     */
-    public function computeEffectiveFee(): array
-    {
-        $product = $this->product ?? [];
-
-        $applyMargin = static function (?float $base, ?float $margin, ?string $toleranceType): ?float {
-            if ($base === null || $margin === null) {
-                return $base;
-            }
-
-            // در حالت درصدی، margin نسبتی از base است؛ در غیر این صورت مقدار مطلق.
-            if ($toleranceType === 'percentage') {
-                return $base + ($base * $margin / 100);
-            }
-
-            return $base + $margin;
-        };
-
-        $feeMargin      = isset($product['fee_margin']) ? (float) $product['fee_margin'] : null;
-        $toleranceType  = $product['tolerance_type'] ?? null;
-
-        $fee = isset($product['fee'])
-            ? $applyMargin((float) $product['fee'], $feeMargin, $toleranceType)
-            : null;
-
-        $newFee = isset($product['new_fee'])
-            ? $applyMargin((float) $product['new_fee'], $feeMargin, $toleranceType)
-            : null;
-
-        return [
-            'fee'     => $fee,
-            'new_fee' => $newFee,
-        ];
-    }
-
-    public function updateArrayField(string $fieldName, callable $callback): self
-    {
-        if ($this->{$fieldName}) {
-            $data = $this->{$fieldName};
-            $updatedData = $callback($data);
-            $this->{$fieldName} = $updatedData;
-        }
-
-        return $this;
     }
 
     public function creator()
@@ -167,5 +148,20 @@ class MetalOrder extends Model
     public function metalOrderExchanges()
     {
         return $this->hasMany(MetalOrderExchange::class);
+    }
+
+    public function coverageAllocations()
+    {
+        return $this->hasMany(MetalOrderCoverageAllocation::class);
+    }
+
+    public function activeCoverageAllocations()
+    {
+        return $this->hasMany(MetalOrderCoverageAllocation::class)->whereNull('reversed_at');
+    }
+
+    public function coverageAttempts()
+    {
+        return $this->hasMany(MetalOrderCoverageAttempt::class);
     }
 }

@@ -19,6 +19,11 @@ Schedule::job(new SettleDueCommitmentsJob)
     ->dailyAt('00:00')
     ->withoutOverlapping(60);
 
+Schedule::job(new \App\Jobs\MarkOverdueMetalOrderCoveragesJob)
+    ->timezone('Asia/Tehran')
+    ->dailyAt('00:05')
+    ->withoutOverlapping(60);
+
 //Schedule::command('job:market-price')
 //    ->everyMinute()
 //    ->runInBackground();

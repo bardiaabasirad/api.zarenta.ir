@@ -23,7 +23,6 @@ class MetalOrderObserver
     {
         try {
             $metalOrder->load(['creator']);
-            $metalOrder->updateProductFee();
 
             if ($metalOrder->status == 'pending') {
                 MetalOrderUpdated::dispatch();
@@ -48,8 +47,6 @@ class MetalOrderObserver
     {
         try {
             $metalOrder->load(['creator']);
-
-            $metalOrder->updateProductFee();
 
             if ($metalOrder->created_type == (new MetalTrader())->getMorphClass()) {
                 MetalTraderOrderUpdated::dispatch($metalOrder);

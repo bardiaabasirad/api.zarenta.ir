@@ -19,6 +19,6 @@ class VarietyLog extends Model
 
     public function creator()
     {
-        return $this->belongsTo(Admin::class, 'log_by');
+        return $this->belongsTo(User::class, 'log_by');
     }
 }

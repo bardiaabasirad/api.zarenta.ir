@@ -36,9 +36,6 @@ class DashboardMetalOrderCreated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        // Product ممکن است آرایه یا مدل Eloquent باشد
-        $product = $this->order->product;
-
         $creator = $this->order->creator; // relation morphTo
 
         return [
@@ -49,8 +46,8 @@ class DashboardMetalOrderCreated implements ShouldBroadcastNow
             'status' => $this->order->status,
 
             'product' => [
-                'name'     => data_get($product, 'name'),
-                'quantity' => data_get($product, 'quantity'),
+                'name'     => $this->order->product_name,
+                'quantity' => $this->order->qty,
             ],
 
             // creator فقط فیلدهای موجود را ارسال می‌کنیم

@@ -33,10 +33,31 @@ return new class extends Migration
                 ->cascadeOnUpdate()
                 ->restrictOnDelete();
         });
+
+        // metal_orders.pricing_unit_id / target_unit_id columns exist from create migration
+        // but units table is created in 2026_10_24_200000 — attach FKs here.
+        Schema::table('metal_orders', function (Blueprint $table) {
+            $table->foreign('pricing_unit_id')
+                ->references('id')
+                ->on('units')
+                ->cascadeOnUpdate()
+                ->restrictOnDelete();
+
+            $table->foreign('target_unit_id')
+                ->references('id')
+                ->on('units')
+                ->cascadeOnUpdate()
+                ->restrictOnDelete();
+        });
     }
 
     public function down(): void
     {
+        Schema::table('metal_orders', function (Blueprint $table) {
+            $table->dropForeign(['pricing_unit_id']);
+            $table->dropForeign(['target_unit_id']);
+        });
+
         Schema::table('metal_items', function (Blueprint $table) {
             $table->dropForeign(['pricing_unit_id']);
             $table->dropColumn('pricing_unit_id');

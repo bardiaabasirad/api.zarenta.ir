@@ -66,13 +66,13 @@ class AssetService
             }
 
             $quantity = self::decimal(
-                data_get($order->product, 'quantity'),
+                $order->qty,
                 self::METAL_SCALE,
                 'quantity'
             );
 
             $fiatAmount = self::decimal(
-                data_get($order->product, 'amount'),
+                $order->amount,
                 self::FIAT_SCALE,
                 'amount'
             );

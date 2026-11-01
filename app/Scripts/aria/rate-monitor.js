@@ -58,7 +58,7 @@ let scrapeQueue = Promise.resolve();
 
 /**
  * WeakSet باعث می‌شود exposeFunction برای یک Page بیش از یک‌بار
- * فراخوانی نشود. Puppeteer bindingهای exposeFunction را در navigation
+ * فراخوانی نشود. Playwright bindingهای exposeFunction را در navigation
  * نیز حفظ می‌کند، اما خود MutationObserver بعد از تغییر DOM باید
  * دوباره attach شود.
  */
@@ -299,7 +299,11 @@ async function exposeCallbacks(page) {
          * به عنوان خطای fatal در نظر نمی‌گیریم؛ اما Page را در WeakSet نگه
          * می‌داریم تا دوباره exposeFunction صدا زده نشود.
          */
-        if (error.message.includes("already exists")) {
+        if (
+            /already exists|already been registered|has been already registered/i.test(
+                error.message || ""
+            )
+        ) {
             exposedPages.add(page);
 
             console.log("✅ [observer] callbacks already exposed to page");

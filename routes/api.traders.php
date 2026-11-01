@@ -2,10 +2,14 @@
 
 use App\Http\Controllers\api\v1\metalTrader\AuthenticationController;
 use App\Http\Controllers\api\v1\metalTrader\ApiClientController;
+use App\Http\Controllers\api\v1\metalTrader\BankAccountController;
 use App\Http\Controllers\api\v1\metalTrader\ContactController;
+use App\Http\Controllers\api\v1\metalTrader\FiatWithdrawalController;
 use App\Http\Controllers\api\v1\metalTrader\HomeController;
 use App\Http\Controllers\api\v1\metalTrader\InquiryController;
 use App\Http\Controllers\api\v1\metalTrader\MetalTraderLeadController;
+use App\Http\Controllers\api\v1\metalTrader\MetalPhysicalDeliveryController;
+use App\Http\Controllers\api\v1\metalTrader\NotificationController as TraderNotificationController;
 use App\Http\Controllers\api\v1\metalTrader\OrderController;
 use App\Http\Controllers\api\v1\metalTrader\RateController;
 use Illuminate\Support\Facades\Route;
@@ -75,6 +79,33 @@ Route::prefix('v1/traders')
 
         Route::prefix('assets')->group(function () {
             Route::get('', [\App\Http\Controllers\api\v1\metalTrader\AssetController::class, 'assets']);
+        });
+
+        Route::prefix('physical-deliveries')->group(function () {
+            Route::get('/', [MetalPhysicalDeliveryController::class, 'index']);
+            Route::get('quote', [MetalPhysicalDeliveryController::class, 'quote']);
+            Route::post('/', [MetalPhysicalDeliveryController::class, 'store']);
+            Route::get('{delivery}', [MetalPhysicalDeliveryController::class, 'show']);
+            Route::post('{delivery}/cancel', [MetalPhysicalDeliveryController::class, 'cancel']);
+        });
+
+        Route::prefix('bank-accounts')->group(function () {
+            Route::get('/', [BankAccountController::class, 'index']);
+            Route::post('/', [BankAccountController::class, 'store']);
+            Route::delete('{bankAccount}', [BankAccountController::class, 'destroy']);
+        });
+
+        Route::prefix('fiat-withdrawals')->group(function () {
+            Route::get('form-meta', [FiatWithdrawalController::class, 'formMeta']);
+            Route::get('/', [FiatWithdrawalController::class, 'index']);
+            Route::post('/', [FiatWithdrawalController::class, 'store']);
+            Route::post('{withdrawal}/cancel', [FiatWithdrawalController::class, 'cancel']);
+        });
+
+        Route::prefix('notifications')->group(function () {
+            Route::get('/', [TraderNotificationController::class, 'index']);
+            Route::post('mark-all-as-read', [TraderNotificationController::class, 'markAllAsRead']);
+            Route::post('{id}/mark-as-read', [TraderNotificationController::class, 'markAsRead']);
         });
 
         Route::get('orders', [OrderController::class, 'index']);

@@ -12,6 +12,7 @@ class Notification extends Model
     protected $fillable = [
         'title',
         'content',
+        'link',
         'notification_type',
         'target_admin_id',
         'is_globally_read',
@@ -26,12 +27,12 @@ class Notification extends Model
 
     public function creator(): BelongsTo
     {
-        return $this->belongsTo(Admin::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function targetAdmin(): BelongsTo
     {
-        return $this->belongsTo(Admin::class, 'target_admin_id');
+        return $this->belongsTo(User::class, 'target_admin_id');
     }
 
     public function reads(): HasMany
@@ -41,7 +42,7 @@ class Notification extends Model
 
     public function readByAdmins(): BelongsToMany
     {
-        return $this->belongsToMany(Admin::class, 'notification_reads', 'notification_id', 'admin_id')
+        return $this->belongsToMany(User::class, 'notification_reads', 'notification_id', 'admin_id')
             ->withPivot('read_at');
     }
 

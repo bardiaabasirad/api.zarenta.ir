@@ -7,6 +7,7 @@ use App\Http\Requests\MetalOrderUpdateRequest;
 use App\Models\MetalOrder;
 use App\Models\MetalOrderLog;
 use App\Models\Option;
+use App\Services\Metal\MetalOrderCoverageService;
 use App\Services\MetalOrderService;
 use Carbon\Carbon;
 
@@ -26,7 +27,25 @@ class MetalOrderController extends Controller
         $creatorId = request()->input('creator_id');
         $creatorType = request()->input('creator_type');
 
-        $data = $data->select('id', 'tracking_code', 'created_id', 'created_type', 'product', 'extra_data', 'order_type', 'status', 'settlement_date', 'created_at')
+        $data = $data->select(
+                'id',
+                'tracking_code',
+                'created_id',
+                'created_type',
+                'metal_item_id',
+                'product_name',
+                'qty',
+                'unit',
+                'fee',
+                'amount',
+                'pricing_unit_id',
+                'target_unit_id',
+                'extra_data',
+                'order_type',
+                'status',
+                'settlement_date',
+                'created_at'
+            )
             ->when(isset($status) && $status !== 'all', function ($query) use ($status) {
                 $query->where('status', $status);
             })
@@ -48,20 +67,17 @@ class MetalOrderController extends Controller
                 $query->whereBetween('created_at', [$startDate, $endDate]);
             })
             ->with(['priceSources', 'creator'])
+            ->withSum('activeCoverageAllocations as realized_pnl_sum', 'realized_pnl')
             ->orderBy($sortBy ?? 'created_at', $dir ?? 'desc')
             ->paginate($count ?? config('app.per_page'));
 
-        $data->getCollection()->transform(function ($order) {
-            if (isset($order->product['fee']) && isset($order->product['fee_margin'])) {
-                $product = $order->product;
-                if ($product['tolerance_type'] == 'percentage') {
-                    $product['fee'] += $product['fee'] * $product['fee_margin'] / 100;
-                } else {
-                    $product['fee'] += $product['fee_margin'];
-                }
-                unset($product['fee_margin']);
-                $order->product = $product;
-            }
+        $data->getCollection()->transform(function (MetalOrder $order) {
+            $order->setAttribute(
+                'realized_pnl',
+                $this->resolvedRealizedPnl($order)
+            );
+            unset($order->realized_pnl_sum);
+
             return $order;
         });
 
@@ -74,16 +90,35 @@ class MetalOrderController extends Controller
     {
         $order = MetalOrder::with([
             'priceSources',
-            'creator'
+            'creator',
+            'activeCoverageAllocations',
         ])
+            ->withSum('activeCoverageAllocations as realized_pnl_sum', 'realized_pnl')
             ->where('tracking_code', $order_id)->firstOrFail();
 
-        $order->updateProductFee();
+        $order->setAttribute('realized_pnl', $this->resolvedRealizedPnl($order));
+        unset($order->realized_pnl_sum);
 
         return response()->json([
             'data' => $order,
             'cancel_reasons' => Option::where('key', 'cancel_melted_order')->get(),
         ]);
+    }
+
+    /**
+     * سود/زیان قطعی فقط برای سفارش خرید نهایی‌شده (succeed) از تخصیص‌های پوشش.
+     */
+    private function resolvedRealizedPnl(MetalOrder $order): ?string
+    {
+        if ($order->status !== 'succeed' || $order->order_type !== 'buy') {
+            return null;
+        }
+
+        if ($order->realized_pnl_sum !== null) {
+            return (string) (int) round((float) $order->realized_pnl_sum);
+        }
+
+        return app(MetalOrderCoverageService::class)->totalRealizedPnl($order);
     }
 
     public function update(MetalOrderUpdateRequest $request, MetalOrder $order)
@@ -120,9 +155,9 @@ class MetalOrderController extends Controller
             'Date' => null,
             'Comment' => 'معامله آنلاین',
             'Action' => $action,
-            'UnitPrice' => $order->product->amount * 10,
+            'UnitPrice' => $order->amount * 10,
             'DivideUnitPrice' => null,
-            'Quantity' => $order->quantity,
+            'Quantity' => $order->qty,
             'GoldPrice' => $goldPrice,
             'GoldUnit' => null,
         ];

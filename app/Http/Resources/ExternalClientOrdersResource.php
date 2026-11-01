@@ -28,11 +28,11 @@ class ExternalClientOrdersResource extends JsonResource
 
         return [
             'tracking_code' => $this->tracking_code,
-            'product_name'  => $this->product['name'],
+            'product_name'  => $this->product_name,
             'order_type'    => $this->order_type,
             'status'        => $this->status,
-            'quantity'      => $this->product['quantity'],
-            'fee'           => $this->product['fee'],
+            'quantity'      => $this->qty,
+            'fee'           => $this->fee,
             'message'       => $message,
             'created_at'    => Jalalian::fromCarbon($this->created_at)->format('Y/m/d H:i:s'),
         ];

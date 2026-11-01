@@ -31,7 +31,22 @@ class OrderController extends Controller
         $start_date = request()->input('start_date');
         $end_date = request()->input('end_date');
 
-        $data = $data->select('id', 'product', 'order_type', 'status', 'tracking_code', 'extra_data', 'created_at')
+        $data = $data->select(
+                'id',
+                'product_name',
+                'qty',
+                'unit',
+                'fee',
+                'amount',
+                'pricing_unit_id',
+                'target_unit_id',
+                'metal_item_id',
+                'order_type',
+                'status',
+                'tracking_code',
+                'extra_data',
+                'created_at'
+            )
             ->when(isset($status) && $status !== 'all', function ($query) use ($status) {
                 $query->where('status', $status);
             })
@@ -46,9 +61,7 @@ class OrderController extends Controller
             })
             ->orderBy($sortBy ?? 'created_at', $dir ?? 'desc')
             ->paginate($count)
-            ->through(fn($order) => $order->updateProductFee());
-
-        MetalOrdersResource::collection($data);
+            ->through(fn($order) => (new MetalOrdersResource($order))->resolve());
 
         return response()->json([
             'data' => $data,
@@ -60,8 +73,6 @@ class OrderController extends Controller
     public function show($tracking_code)
     {
         $order = MetalOrder::where('tracking_code', $tracking_code)->first();
-
-        $order->updateProductFee();
 
         return \response()->json([
             'order' => MetalOrdersResource::make($order),
@@ -107,10 +118,10 @@ class OrderController extends Controller
         $extraData = [
             'order_reference' => 'pnl',
             'frozen' => $frozen,
+            'display_fee' => $wantedQuote['displayed'],
         ];
 
         $status = 'pending';
-        $newPrice = [];
 
         $totalWantedPrice = (int) round($quantity * $wantedQuote['rounded']);
         $totalLatestPrice = (int) round($quantity * $latestQuote['rounded']);
@@ -120,16 +131,14 @@ class OrderController extends Controller
                 || ($action === 'sell' && $totalWantedPrice > $totalLatestPrice);
 
             if ($isRejected) {
-                $newPrice = [
-                    'new_fee' => $latestQuote['fee'],
-                    'new_display_fee' => $latestQuote['displayed'],
-                ];
                 $extraData = array_merge($extraData, [
                     'cause' => 'price_difference',
                     'rejected_at' => now(),
                     'message' => 'بروز نبودن نرخ',
                     'current_price' => $totalLatestPrice,
                     'requested_price' => $totalWantedPrice,
+                    'new_fee' => $latestQuote['fee'],
+                    'new_display_fee' => $latestQuote['displayed'],
                 ]);
 
                 $status = 'rejected';
@@ -146,30 +155,18 @@ class OrderController extends Controller
             'extra_data' => $extraData,
             'settlement_date' => $settlementDate,
             'settlement_status' => $settlementDate->isAfter(today()) ? 'pending' : 'settled',
-            'product' => [
-                ...$newPrice,
-                'name' => $metalItem->title,
-                'metal_item_id' => $metalItem->id,
-                'fee' => $wantedQuote['fee'],
-                'display_fee' => $wantedQuote['displayed'],
-                'fee_margin' => 0,
-                'unit' => $persianUnit,
-                'en_unit' => $metalItem->unit,
-                'quantity' => $quantity,
-                'tolerance_type' => $dealingGroupMetalItem->tolerance_type,
-                'pricing_unit_id' => $wantedQuote['pricing_unit_id'],
-                'target_unit_id' => $wantedQuote['target_unit_id'],
-                'target_unit_name' => $wantedQuote['target_unit_name'],
-                'display_mode' => $wantedQuote['display_mode'],
-                'amount' => $amount,
-            ],
+            'product_name' => $metalItem->title,
+            'qty' => $quantity,
+            'unit' => $metalItem->unit,
+            // Quote fee already includes dealing-group fee_margin.
+            'fee' => $wantedQuote['fee'],
+            'amount' => $amount,
+            'pricing_unit_id' => $wantedQuote['pricing_unit_id'],
+            'target_unit_id' => $wantedQuote['target_unit_id'],
         ];
 
         $order = DB::transaction(function () use ($payload) {
-            $order = MetalOrder::create($payload);
-            $order->updateProductFee();
-
-            return $order;
+            return MetalOrder::create($payload);
         });
 
         return response()->json(['order' => MetalOrdersResource::make($order)]);

@@ -48,7 +48,7 @@ class NotificationController extends Controller
             'title' => 'required|string|max:255',
             'content' => 'required|string',
             'notification_type' => 'required|in:public_single_read,public_multi_read,personal',
-            'target_admin_id' => 'required_if:notification_type,personal|exists:admins,id',
+            'target_admin_id' => 'required_if:notification_type,personal|exists:users,id',
         ]);
 
         $validated['created_by'] = auth()->id();

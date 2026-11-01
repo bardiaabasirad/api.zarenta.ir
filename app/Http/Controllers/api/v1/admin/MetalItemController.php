@@ -21,7 +21,14 @@ class MetalItemController extends Controller
         $metal_items = MetalItem::query()
             ->withoutGlobalScope('visible')
             ->join('metal_item_groups', 'metal_items.metal_item_group_id', '=', 'metal_item_groups.id')
-            ->select('metal_items.id', 'metal_items.title', 'metal_items.metal_item_group_id')
+            ->select(
+                'metal_items.id',
+                'metal_items.title',
+                'metal_items.metal_item_group_id',
+                'metal_items.settlement_working_days',
+                'metal_items.unit',
+                'metal_items.pricing_unit_id'
+            )
             ->when(isset($id), function ($query) use ($id) {
                 $query->where('metal_items.id', 'like', '%' . $id . '%');
             })

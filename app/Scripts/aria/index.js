@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { initBrowser } = require("./puppeteer-service");
+const { initBrowser } = require("./playwright-service");
 const { login } = require("./auth-service");
 const rateMonitor = require("./rate-monitor");
 const WatchdogService = require("./services/watchdog.service");
@@ -11,9 +11,9 @@ const logger = require("./utils/logger.util");
 
         // 1. Authentication
         await login(mainPage, {
-            username: process.env.PUPPETEER_USER,
-            password: process.env.PUPPETEER_PASS,
-            loginUrl: process.env.PUPPETEER_URL,
+            username: process.env.PLAYWRIGHT_USER || process.env.PUPPETEER_USER,
+            password: process.env.PLAYWRIGHT_PASS || process.env.PUPPETEER_PASS,
+            loginUrl: process.env.PLAYWRIGHT_URL || process.env.PUPPETEER_URL,
         });
 
         // 2. Setup Watchdog
@@ -23,14 +23,13 @@ const logger = require("./utils/logger.util");
             usePm2: true,
             noItemTimeout: 3600000,
             rateMonitor: rateMonitor,
-            freezeTimeout: process.env.FREEZE_TIMEOUT
+            freezeTimeout: process.env.FREEZE_TIMEOUT,
         });
 
         rateMonitor.markActivity(() => watchdog.reset());
 
         // 3. Ignition
         watchdog.start();
-
     } catch (err) {
         logger.log(`❌ Fatal Entry Error: ${err.stack}`);
         process.exit(1);

@@ -99,21 +99,19 @@ class KimiaService
             $frozen = $metalOrder->extra_data['frozen'];
             $action = $metalOrder->order_type === 'buy' ? 64 : 32;
 
-            if ($metalOrder->product['tolerance_type'] == 'fixed_amount') {
-                $fee = (int)$metalOrder->product['fee'] + $metalOrder->product['fee_margin'];
-            } else {
-                $fee = (int)$metalOrder->product['fee'] + ((int)$metalOrder->product['fee'] * $metalOrder->product['fee_margin'] / 100);
-            }
-
-            $kimiaProductId = $metalOrder->product['kimia_product_id'];
-            $displayMode = $metalOrder->product['display_mode'];
+            $fee = (int) $metalOrder->fee;
+            $metalOrder->loadMissing('metalItem');
+            $kimiaProductId = $metalOrder->metalItem?->kimia_product_id;
+            $displayMode = $metalOrder->target_unit_id
+                ? app(\App\Services\MetalPriceService::class)->toLegacyDisplayMode((string) $metalOrder->target_unit_id)
+                : 'quotation';
 
             if ($metalOrder->extra_data['accounting_document_id']) {
                 $kimiaResponse = self::exchangeCurrency(
                     $metalTrader->kimi_account_id,
                     $action,
                     $fee,
-                    $metalOrder->product['quantity'],
+                    $metalOrder->qty,
                     $kimiaProductId,
                     $metalOrder->extra_data['accounting_document_id']
                 );
@@ -123,7 +121,7 @@ class KimiaService
                         $metalTrader->kimi_account_id,
                         $action,
                         $fee,
-                        $metalOrder->product['quantity'],
+                        $metalOrder->qty,
                         $kimiaProductId,
                         $displayMode
                     ),
@@ -131,7 +129,7 @@ class KimiaService
                         $metalTrader->kimi_account_id,
                         $action,
                         $fee,
-                        $metalOrder->product['amount'],
+                        $metalOrder->amount,
                         $kimiaProductId,
                         $displayMode
                     )
@@ -179,7 +177,8 @@ class KimiaService
 
         try {
             $action = $metalOrder->order_type === 'buy' ? 32 : 64;
-            $kimiaProductId = $metalOrder->product['kimia_product_id'];
+            $metalOrder->loadMissing('metalItem');
+            $kimiaProductId = $metalOrder->metalItem?->kimia_product_id;
             $accountingDocumentId = $metalOrder->extra_data['accounting_document_id'] ?? null;
             $autoOrderQuantity = (float) ($metalOrder->extra_data['auto_order_quantity'] ?? 0);
 

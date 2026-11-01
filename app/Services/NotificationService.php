@@ -27,8 +27,9 @@ class NotificationService
         $notification = Notification::create([
             'title' => $data['title'],
             'content' => $data['content'],
+            'link' => $data['link'] ?? null,
             'notification_type' => 'public_single_read',
-            'created_by' => $data['created_by'],
+            'created_by' => $data['created_by'] ?? null,
         ]);
 
         event(new NotificationCreated($notification));
@@ -41,8 +42,9 @@ class NotificationService
         $notification = Notification::create([
             'title' => $data['title'],
             'content' => $data['content'],
+            'link' => $data['link'] ?? null,
             'notification_type' => 'public_multi_read',
-            'created_by' => $data['created_by'],
+            'created_by' => $data['created_by'] ?? null,
         ]);
 
         event(new NotificationCreated($notification));
@@ -55,9 +57,10 @@ class NotificationService
         $notification = Notification::create([
             'title' => $data['title'],
             'content' => $data['content'],
+            'link' => $data['link'] ?? null,
             'notification_type' => 'personal',
             'target_admin_id' => $data['target_admin_id'],
-            'created_by' => $data['created_by'],
+            'created_by' => $data['created_by'] ?? null,
         ]);
 
         event(new NotificationCreated($notification));

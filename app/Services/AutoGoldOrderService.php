@@ -34,13 +34,13 @@ class AutoGoldOrderService
             return null; // یعنی هم‌زمان یه نفر دیگه در حال ثبتش بوده
         }
 
-        $productConfig = static::resolveProductConfig($goldOrder->product['name'] ?? null);
+        $productConfig = static::resolveProductConfig($goldOrder->product_name ?? null);
 
         if (empty($productConfig)) {
             return collect();
         }
 
-        $quantity = $goldOrder->product['quantity'] ?? null;
+        $quantity = $goldOrder->qty ?? null;
 
         if (! is_numeric($quantity)) {
             return collect();

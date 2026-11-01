@@ -37,6 +37,8 @@ class SidebarUpdate implements ShouldBroadcastNow
         $count = match ($this->type) {
             'order' => \App\Models\Order::where('status', 'paid')->count(),
             'metal_order' => \App\Models\MetalOrder::where('status', 'pending')->count(),
+            'bank_account' => \App\Models\MetalTraderBankAccount::where('status', 'pending')->count(),
+            'fiat_withdrawal' => \App\Models\MetalTraderFiatWithdrawal::where('status', 'pending')->count(),
             default => 0,
         };
 

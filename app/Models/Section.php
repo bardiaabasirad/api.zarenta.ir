@@ -21,6 +21,6 @@ class Section extends Model
 
     public function creator()
     {
-        return $this->belongsTo(Admin::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by');
     }
 }

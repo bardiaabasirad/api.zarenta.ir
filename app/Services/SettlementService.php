@@ -162,8 +162,8 @@ class SettlementService
             $netFiat  = '0';
 
             foreach ($orders as $order) {
-                $qty    = (string) data_get($order->product, 'quantity', '0');
-                $amount = (string) data_get($order->product, 'amount', '0');
+                $qty    = (string) ($order->qty ?? '0');
+                $amount = (string) ($order->amount ?? '0');
 
                 if ($order->order_type === 'buy') {
                     $netMetal = bcadd($netMetal, $qty, self::METAL_SCALE);

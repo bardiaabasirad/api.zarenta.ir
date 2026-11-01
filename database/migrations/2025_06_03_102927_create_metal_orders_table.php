@@ -20,7 +20,16 @@ return new class extends Migration
                 ->constrained('metal_items')
                 ->cascadeOnUpdate();
 
-            $table->json('product');
+            $table->string('product_name');
+            $table->decimal('qty', 16, 3);
+            $table->string('unit', 16)->nullable();
+            $table->decimal('fee', 20, 2);
+            $table->decimal('amount', 20, 0);
+
+            // FK to units is added after units table exists
+            // (see 2026_10_24_200100 and alter_metal_orders_drop_product_json.sql)
+            $table->string('pricing_unit_id', 20)->nullable();
+            $table->string('target_unit_id', 20)->nullable();
 
             $table->unsignedBigInteger('created_id')->nullable();
             $table->string('created_type', 32)->nullable();

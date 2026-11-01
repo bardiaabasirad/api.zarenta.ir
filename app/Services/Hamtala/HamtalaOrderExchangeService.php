@@ -97,7 +97,7 @@ class HamtalaOrderExchangeService
 
     public function prepareAutoOrderData(MetalOrder $metalOrder): array|string
     {
-        $metalItemID = $metalOrder->product['metal_item_id'];
+        $metalItemID = $metalOrder->metal_item_id;
 
         $externalIdentifier = MetalItemPriceSource::where([
             'metal_item_id' => $metalItemID,
@@ -120,13 +120,13 @@ class HamtalaOrderExchangeService
 
         $minWeight = $metalItemAutoOrder->min_auto_buy_weight ?? 0;
 
-        if ($metalOrder->product['quantity'] < $minWeight) {
+        if ($metalOrder->qty < $minWeight) {
             return "minimum_weight_not_met";
         }
 
         $maxWeight = $metalItemAutoOrder->max_auto_buy_weight ?? INF;
 
-        if ($metalOrder->product['quantity'] > $maxWeight) {
+        if ($metalOrder->qty > $maxWeight) {
             return "maximum_weight_not_met";
         }
 
@@ -139,9 +139,9 @@ class HamtalaOrderExchangeService
 
         $buyOrSell = $isBuy ? 1 : 2;
 
-        $quantity = round((float)($metalOrder->product['quantity'] ?? 0), 3);
+        $quantity = round((float)($metalOrder->qty ?? 0), 3);
 
-        if (($metalOrder->product['en_unit'] ?? null) === 'count') {
+        if (($metalOrder->unit ?? null) === 'count') {
             $count = $quantity;
             $productType = '2'; // سکه
         } else {
@@ -188,22 +188,22 @@ class HamtalaOrderExchangeService
             'order_type' => $orderType,
             'weight' => $weight,
             'count' => $count,
-            'description' => "معامله {$metalOrder->product['name']}",
+            'description' => "معامله {$metalOrder->product_name}",
             'product_type' => $productType,
-            'product_name' => $metalOrder->product['name'],
+            'product_name' => $metalOrder->product_name,
         ];
     }
 
     public function isWeightOutOfRange(MetalOrder $metalOrder): bool
     {
-        $metalItemID = $metalOrder->product['metal_item_id'];
+        $metalItemID = $metalOrder->metal_item_id;
         $metalItemAutoOrder = $this->getAutoOrderSetting($metalItemID);
 
         if (!$metalItemAutoOrder) {
             return false;
         }
 
-        $quantity = $metalOrder->product['quantity'];
+        $quantity = $metalOrder->qty;
         $minWeight = $metalItemAutoOrder->min_auto_buy_weight ?? 0;
         $maxWeight = $metalItemAutoOrder->max_auto_buy_weight ?? INF;
 
@@ -212,7 +212,7 @@ class HamtalaOrderExchangeService
 
     public function isAutoOrderDisabled(MetalOrder $metalOrder): bool
     {
-        $metalItemID = $metalOrder->product['metal_item_id'];
+        $metalItemID = $metalOrder->metal_item_id;
         $metalItemAutoOrder = $this->getAutoOrderSetting($metalItemID);
 
         if (!$metalItemAutoOrder) {
@@ -238,7 +238,7 @@ class HamtalaOrderExchangeService
         array              $preparedData
     ): array
     {
-        $productPrice = $this->hamtalaPriceService->getProductPrice($metalOrder->product['metal_item_id']);
+        $productPrice = $this->hamtalaPriceService->getProductPrice($metalOrder->metal_item_id);
 
         if (($preparedData['buy_or_sell'] ?? null) === 1) {
             $mazane = $productPrice['price_buy'];
@@ -246,7 +246,7 @@ class HamtalaOrderExchangeService
             $mazane = $productPrice['price_sell'];
         }
 
-        if (($metalOrder->product['en_unit'] ?? null) === 'count') {
+        if (($metalOrder->unit ?? null) === 'count') {
             $price = $preparedData['count'] * $mazane;
         } else {
             $price = round(
@@ -332,7 +332,7 @@ class HamtalaOrderExchangeService
                     throw $e;
                 }
 
-                KimiaService::submitHamtalaOrder($metalOrder, $metalOrderExchange);
+//                KimiaService::submitHamtalaOrder($metalOrder, $metalOrderExchange);
             }
         } elseif ($remoteStatus === HamtalaConstants::ORDER_PENDING) {
             $update['status'] = 'placed';

@@ -81,6 +81,35 @@ class MetalOrderService
             $previousStatus !== 'succeed'
         ) {
             AssetService::updateAsset($metalOrder->fresh());
+
+            // فروش کاربر → ورود Lot به خزانه سیستم (بدون تخصیص خودکار)
+            if ($metalOrder->order_type === 'sell') {
+                try {
+                    app(\App\Services\Metal\MetalOrderCoverageService::class)
+                        ->ingestUserSellOrder($metalOrder->fresh());
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            }
+
+            // خرید: حتی اگر ادمین دستی تأیید کند، پوشش خزانه باید ثبت/دنبال شود
+            if ($metalOrder->order_type === 'buy') {
+                try {
+                    $coverage = app(\App\Services\Metal\MetalOrderCoverageService::class);
+                    $order = $metalOrder->fresh();
+                    $coverage->initializeCoverageFields($order);
+                    // اگر هنوز تخصیصی ندارد، یک‌بار موتور پوشش را اجرا کن (خزانه → همکار)
+                    if (bccomp((string) ($order->fresh()->open_qty ?? '0'), '0', 3) > 0) {
+                        $coverage->coverBuyOrder(
+                            $order->fresh(),
+                            'admin-succeed-cover:' . $order->id,
+                            true
+                        );
+                    }
+                } catch (Throwable $e) {
+                    report($e);
+                }
+            }
         }
 
         return $metalOrder->fresh();
@@ -167,11 +196,11 @@ class MetalOrderService
             throw new Exception("Setting 'melted_stock_quantity' not found.");
         }
 
-        if (!isset($metalOrder->product['quantity'])) {
+        if ($metalOrder->qty === null) {
             throw new Exception("Product quantity not found for metal order ID: {$metalOrder->id}");
         }
 
-        $quantity = round((float)$metalOrder->product['quantity'], 3);
+        $quantity = round((float)$metalOrder->qty, 3);
         $currentValue = round((float)$setting->option_value, 3);
 
         $calculatedStock = self::calculateStock($metalOrder, $currentValue, $quantity);

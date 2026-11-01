@@ -26,6 +26,10 @@ use App\Http\Controllers\api\v1\admin\ColorController;
 use App\Http\Controllers\api\v1\admin\DashboardController;
 use App\Http\Controllers\api\v1\admin\DirectoryController;
 use App\Http\Controllers\api\v1\admin\MetalOrderController;
+use App\Http\Controllers\api\v1\admin\MetalOrderCoverageController;
+use App\Http\Controllers\api\v1\admin\MetalPhysicalDeliveryController;
+use App\Http\Controllers\api\v1\admin\MetalTraderBankAccountController;
+use App\Http\Controllers\api\v1\admin\MetalTraderFiatWithdrawalController;
 use App\Http\Controllers\api\v1\admin\InquiryController;
 use App\Http\Controllers\api\v1\admin\JibitController;
 use App\Http\Controllers\api\v1\admin\MeltedController;
@@ -124,6 +128,32 @@ Route::prefix('v1/admin')
             Route::patch('{order}', [MetalOrderController::class, 'update']);
             Route::get('{order}/log', [MetalOrderController::class, 'log']);
         });
+
+        // Metal order treasury coverage
+        Route::prefix('metal-order-coverages')->group(function () {
+            Route::get('/', [MetalOrderCoverageController::class, 'index']);
+            Route::get('lots', [MetalOrderCoverageController::class, 'lots']);
+            Route::get('treasury-summary', [MetalOrderCoverageController::class, 'treasurySummary']);
+            Route::post('physical-purchases', [MetalOrderCoverageController::class, 'storePhysicalPurchase']);
+            Route::post('lots/{lot}/external-out', [MetalOrderCoverageController::class, 'externalOut']);
+            Route::get('{order}', [MetalOrderCoverageController::class, 'show']);
+            Route::post('{order}/retry-partner', [MetalOrderCoverageController::class, 'retryPartner']);
+            Route::post('{order}/allocate-treasury', [MetalOrderCoverageController::class, 'allocateTreasury']);
+            Route::post('{order}/allocate-user-sell', [MetalOrderCoverageController::class, 'allocateUserSell']);
+            Route::post('{order}/allocate-physical', [MetalOrderCoverageController::class, 'allocatePhysical']);
+        });
+
+        Route::prefix('metal-physical-deliveries')->group(function () {
+            Route::get('/', [MetalPhysicalDeliveryController::class, 'index']);
+            Route::get('fee-settings', [MetalPhysicalDeliveryController::class, 'feeSettings']);
+            Route::patch('fee-settings', [MetalPhysicalDeliveryController::class, 'updateFeeSettings']);
+            Route::get('{delivery}', [MetalPhysicalDeliveryController::class, 'show']);
+            Route::post('{delivery}/ready', [MetalPhysicalDeliveryController::class, 'markReady']);
+            Route::post('{delivery}/cancel', [MetalPhysicalDeliveryController::class, 'cancel']);
+            Route::post('{delivery}/reject', [MetalPhysicalDeliveryController::class, 'reject']);
+            Route::post('{delivery}/deliver', [MetalPhysicalDeliveryController::class, 'deliver']);
+        });
+
         Route::prefix('selected-metal-prices')->group(function () {
             Route::post('/', [SelectedMetalPriceController::class, 'store']);
             Route::post('use-rate', [SelectedMetalPriceController::class, 'useRate']);
@@ -335,6 +365,22 @@ Route::prefix('v1/admin')
             Route::post('{metal_trader}/subscriptions', [MetalTraderController::class, 'storeSubscriptions']);
             Route::get('{metal_trader}/subscriptions/create', [MetalTraderController::class, 'createSubscription']);
         });
+
+        Route::prefix('metal-trader-bank-accounts')->group(function () {
+            Route::get('rejection-reasons', [MetalTraderBankAccountController::class, 'rejectionReasons']);
+            Route::get('/', [MetalTraderBankAccountController::class, 'index']);
+            Route::post('{bankAccount}/approve', [MetalTraderBankAccountController::class, 'approve']);
+            Route::post('{bankAccount}/reject', [MetalTraderBankAccountController::class, 'reject']);
+            Route::delete('{bankAccount}', [MetalTraderBankAccountController::class, 'destroy']);
+        });
+
+        Route::prefix('metal-trader-fiat-withdrawals')->group(function () {
+            Route::get('rejection-reasons', [MetalTraderFiatWithdrawalController::class, 'rejectionReasons']);
+            Route::get('/', [MetalTraderFiatWithdrawalController::class, 'index']);
+            Route::post('{withdrawal}/mark-paid', [MetalTraderFiatWithdrawalController::class, 'markPaid']);
+            Route::post('{withdrawal}/reject', [MetalTraderFiatWithdrawalController::class, 'reject']);
+        });
+
         Route::prefix('metals')->group(function(){
             Route::prefix('metal-cards')->group(function(){
                 Route::get('/', [MetalCardController::class, 'index']);

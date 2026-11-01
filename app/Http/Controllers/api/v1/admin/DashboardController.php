@@ -4,6 +4,8 @@ namespace App\Http\Controllers\api\v1\admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\MetalOrder;
+use App\Models\MetalTraderBankAccount;
+use App\Models\MetalTraderFiatWithdrawal;
 use App\Models\Notification;
 use App\Models\Order;
 use App\Models\User;
@@ -19,7 +21,15 @@ class DashboardController extends Controller
             [
                 'type' => 'metal_order',
                 'count' => MetalOrder::where('status', 'pending')->count(),
-            ]
+            ],
+            [
+                'type' => 'bank_account',
+                'count' => MetalTraderBankAccount::where('status', 'pending')->count(),
+            ],
+            [
+                'type' => 'fiat_withdrawal',
+                'count' => MetalTraderFiatWithdrawal::where('status', 'pending')->count(),
+            ],
         ]);
     }
 
@@ -74,7 +84,6 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($order) {
 
-                $product = $order->product;
                 $creator = $order->creator;
 
                 return [
@@ -85,9 +94,9 @@ class DashboardController extends Controller
                     'status'         => $order->status,
 
                     'product' => [
-                        'name'      => data_get($product, 'name'),
-                        'quantity'  => data_get($product, 'quantity'),
-                        'unit'      => data_get($product, 'unit'),
+                        'name'      => $order->product_name,
+                        'quantity'  => $order->qty,
+                        'unit'      => \App\Models\Unit::cached((string) ($order->unit ?? ''))?->name ?? $order->unit,
                     ],
 
                     'creator' => array_filter([

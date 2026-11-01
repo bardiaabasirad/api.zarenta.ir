@@ -10,7 +10,7 @@ class MetalTraderChangePasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'phone' => ['required','exists:metal_traders,phone','regex:/^9\d{9}$/'],
+            'phone' => ['required','exists:users,phone','regex:/^9\d{9}$/'],
             'password' => [
                 'required',
                 'confirmed', // چک می‌کند که با فیلد password_confirmation یکسان باشد

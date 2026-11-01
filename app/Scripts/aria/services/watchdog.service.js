@@ -1,5 +1,6 @@
 const logger = require("../utils/logger.util");
 const { ensureLoggedIn } = require("../auth-service");
+const { agentLog } = require("../utils/debug-agent.util");
 
 class WatchdogService {
     constructor(page, config = {}) {
@@ -234,6 +235,17 @@ class WatchdogService {
      */
     async checkHealth() {
         if (this.healthCheckRunning || this.isRecovering) {
+            // #region agent log
+            agentLog(
+                "watchdog.service.js:checkHealth:skip",
+                "Health check skipped — already running or recovering",
+                {
+                    healthCheckRunning: this.healthCheckRunning,
+                    isRecovering: this.isRecovering,
+                },
+                "D"
+            );
+            // #endregion
             return;
         }
 
@@ -242,6 +254,17 @@ class WatchdogService {
         try {
             if (!this.page || this.page.isClosed()) {
                 logger.log("❌ Page is closed");
+                // #region agent log
+                agentLog(
+                    "watchdog.service.js:checkHealth:pageClosed",
+                    "Page closed detected in health check",
+                    {
+                        hasPage: Boolean(this.page),
+                        isClosed: this.page ? this.page.isClosed() : null,
+                    },
+                    "A"
+                );
+                // #endregion
                 await this.handleFailure("Page is closed");
                 return;
             }
@@ -378,10 +401,7 @@ class WatchdogService {
                 return false;
             }
 
-            const text = await this.page.evaluate(
-                (element) => element.textContent.trim(),
-                el
-            );
+            const text = ((await el.textContent()) || "").trim();
 
             if (text !== this.lastDatetime) {
                 this.lastDatetime = text;
@@ -506,6 +526,18 @@ class WatchdogService {
             logger.log(`❌ Recovery failed: ${err.message}`);
             logger.log("🔄 Restarting application...");
 
+            // #region agent log
+            agentLog(
+                "watchdog.service.js:handleFailure:catch",
+                "Recovery failed — about to terminate",
+                {
+                    reason,
+                    err: err.message,
+                    isDetachedFrame: /detached Frame/i.test(err.message || ""),
+                },
+                "B"
+            );
+            // #endregion
             this.terminate();
         } finally {
             this.isRecovering = false;
@@ -513,6 +545,14 @@ class WatchdogService {
     }
 
     terminate() {
+        // #region agent log
+        agentLog(
+            "watchdog.service.js:terminate",
+            "terminate() called — process will exit",
+            { usePm2: this.config.usePm2, uptimeMs: Math.round(process.uptime() * 1000) },
+            "B"
+        );
+        // #endregion
         this.stop();
 
         if (this.config.usePm2) {

@@ -10,7 +10,11 @@ class UpdateAdminRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'phone' => ['sometimes','regex:/^(\+989|989|09|9)\d{9}$/','unique:admins'],
+            'phone' => [
+                'sometimes',
+                'regex:/^(\+989|989|09|9)\d{9}$/',
+                'unique:users,phone,' . $this->route('staff')?->id,
+            ],
             'password' => ['sometimes','string','min:8','max:255','confirmed'],
             'full_name' => ['sometimes','string','max:255'],
             'status' => ['sometimes','in:' . implode(',', UserStatus::classConstants())],

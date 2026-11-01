@@ -24,12 +24,12 @@ class PuppeteerService
     public static function placeOrder(MetalOrder $goldOrder)
     {
         // بررسی اینکه محصول پشتیبانی می‌شود یا نه
-        if (!isset(self::$productMap[$goldOrder->product['name']])) {
+        if (!isset(self::$productMap[$goldOrder->product_name])) {
             return; // محصول در نقشه وجود ندارد، کاری انجام نمی‌دهیم
         }
 
-        $info = self::$productMap[$goldOrder->product['name']];
-        $activeBroker = self::targetExchange($info['type'], $goldOrder->product);
+        $info = self::$productMap[$goldOrder->product_name];
+        $activeBroker = self::targetExchange($info['type'], $goldOrder->qty);
 
         if ($activeBroker && $activeBroker->autoOrderExchange->exchange_id === 'darina') {
             self::placeDarinaOrder($goldOrder, $info['delivery'], $activeBroker->auto_order_exchange_id);
@@ -39,12 +39,12 @@ class PuppeteerService
     /**
      * یافتن بروکر فعال بر اساس نوع تحویل
      */
-    private static function targetExchange($type, $product)
+    private static function targetExchange($type, $quantity)
     {
         return SelectedAutoOrderExchange::where('status', 'active')
             ->where('type', $type)
-            ->where('min', '<=', $product['weight'])
-            ->where('max', '>=', $product['weight'])
+            ->where('min', '<=', $quantity)
+            ->where('max', '>=', $quantity)
             ->with('autoOrderExchange')
             ->first();
     }
@@ -60,7 +60,7 @@ class PuppeteerService
                 ->post('http://localhost:3000/order', [
                     'action' => $goldOrder->order_type,
                     'delivery' => $delivery,
-                    'amount' => $goldOrder->product['weight']
+                    'amount' => $goldOrder->qty
                 ]);
 
             // اگر پاسخ HTTP غیر موفق بود (غیر 2xx)

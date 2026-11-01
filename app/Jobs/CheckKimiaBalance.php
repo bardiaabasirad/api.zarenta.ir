@@ -61,7 +61,7 @@ class CheckKimiaBalance implements ShouldQueue
             $c16 = $this->leverage;
             $e16 = $this->metal_order->order_type;
 
-            $f16 = $this->metal_order->product['amount'];
+            $f16 = $this->metal_order->amount;
 
             $priceSource = $e16 === 'buy' ? $latestPrice->sell : $latestPrice->buy;
             $oneGram = round($priceSource / AppConstants::MARKET_SPECIFIC_CONVERSION_FACTOR);

@@ -18,7 +18,7 @@ class StoreManualFiatOperationRequest extends FormRequest
             'type' => ['required', 'string', Rule::in(['deposit', 'withdraw'])],
             'metal_trader_id' => ['required', 'integer', 'exists:metal_traders,id'],
             'value' => ['required', 'numeric', 'gt:0'],
-            'reference_number' => ['required', 'string'],
+            'reference_number' => ['nullable', 'string', 'max:191'],
             'description' => ['nullable', 'string', 'max:1000'],
         ];
     }

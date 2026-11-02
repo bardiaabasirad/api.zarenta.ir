@@ -14,17 +14,14 @@ class TransactionController extends Controller
     {
         $metalTrader = Auth::guard('metal-trader-api')->user();
 
-        // ۱. تنظیم بازه زمانی (از ابتدای روز شروع تا انتهای روز پایان)
         $startDate = Carbon::parse(request()->input('start', now()->subMonth()))->startOfDay();
         $endDate   = Carbon::parse(request()->input('end', now()))->endOfDay();
 
-        // ۲. کست کردن pageSize به عدد صحیح با مقدار پیش‌فرض
-        $pageSize  = (int) request()->input('pageSize', 100000);
+        $perPage = (int) request()->input('count', request()->input('pageSize', config('app.per_page', 50)));
+        $perPage = max(1, min($perPage, 20));
 
-        // ۳. استخراج آی‌دی کیف‌پول‌ها
         $walletIds = MetalTraderWallet::where('metal_trader_id', $metalTrader->id)->pluck('id');
 
-        // ۴. اجرای کوئری با اعمال فیلتر تاریخ و limit
         $transactions = WalletTransaction::query()
             ->leftJoin('metal_trader_wallets', 'metal_trader_wallets.id', '=', 'wallet_transactions.metal_trader_wallet_id')
             ->leftJoin('metal_items', 'metal_items.id', '=', 'metal_trader_wallets.metal_item_id')
@@ -36,9 +33,8 @@ class TransactionController extends Controller
                 'metal_items.unit as metal_item_unit',
             ])
             ->orderBy('wallet_transactions.created_at', 'desc')
-            ->limit($pageSize)
-            ->get();
+            ->paginate($perPage);
 
-        return response()->json($transactions);
+        return response()->json(['data' => $transactions]);
     }
 }

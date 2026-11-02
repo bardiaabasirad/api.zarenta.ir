@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\api\v1\admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\MetalTrader;
+use App\Models\MetalTraderBankAccount;
 use App\Models\MetalTraderFiatWithdrawal;
 use App\Models\MetalTraderFiatWithdrawalRejectionReason;
+use App\Models\MetalTraderWallet;
 use App\Services\MetalTraderFiatWithdrawalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -27,6 +30,7 @@ class MetalTraderFiatWithdrawalController extends Controller
                 'trader:id,name,phone',
                 'bankAccount:id,sheba,status',
                 'reviewer:id,full_name',
+                'creator:id,full_name',
                 'rejectionReason:id,value',
             ])
             ->orderByDesc('id');
@@ -55,6 +59,69 @@ class MetalTraderFiatWithdrawalController extends Controller
         return response()->json([
             'data' => $query->paginate($request->input('count') ?? 50),
         ]);
+    }
+
+    public function formMeta(MetalTrader $metal_trader): JsonResponse
+    {
+        $this->authorizeManage();
+
+        $wallet = MetalTraderWallet::query()
+            ->where('metal_trader_id', $metal_trader->id)
+            ->whereNull('metal_item_id')
+            ->first();
+
+        $banks = MetalTraderBankAccount::query()
+            ->where('metal_trader_id', $metal_trader->id)
+            ->where('status', MetalTraderBankAccount::STATUS_APPROVED)
+            ->orderByDesc('id')
+            ->get(['id', 'sheba', 'status']);
+
+        return response()->json([
+            'data' => [
+                'available_balance' => (string) ($wallet->available_balance ?? '0'),
+                'bank_accounts' => $banks,
+            ],
+        ]);
+    }
+
+    public function store(Request $request): JsonResponse
+    {
+        $this->authorizeManage();
+
+        $data = $request->validate([
+            'metal_trader_id' => ['required', 'integer', 'exists:metal_traders,id'],
+            'amount' => ['required'],
+            'metal_trader_bank_account_id' => ['required', 'integer'],
+            'reference_number' => ['nullable', 'string', 'max:191'],
+        ], [
+            'metal_trader_id.required' => 'انتخاب کاربر الزامی است.',
+            'amount.required' => 'مبلغ برداشت الزامی است.',
+            'metal_trader_bank_account_id.required' => 'انتخاب حساب بانکی الزامی است.',
+        ]);
+
+        $amount = preg_replace('/[^\d]/', '', (string) $data['amount']);
+        $trader = MetalTrader::query()->findOrFail((int) $data['metal_trader_id']);
+
+        try {
+            $withdrawal = $this->withdrawalService->create(
+                $trader,
+                (string) $amount,
+                (int) $data['metal_trader_bank_account_id'],
+                $data['reference_number'] ?? null,
+                $request->user()
+            );
+        } catch (Throwable $e) {
+            if ($e instanceof \Illuminate\Validation\ValidationException) {
+                throw $e;
+            }
+
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'درخواست برداشت ثبت شد.',
+            'data' => $withdrawal->load(['trader:id,name,phone', 'creator:id,full_name']),
+        ], 201);
     }
 
     public function markPaid(Request $request, MetalTraderFiatWithdrawal $withdrawal): JsonResponse

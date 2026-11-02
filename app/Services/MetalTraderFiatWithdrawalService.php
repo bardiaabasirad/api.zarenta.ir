@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Events\SidebarUpdate;
-use App\Models\User;
+use App\Models\Admin;
 use App\Models\MetalTrader;
 use App\Models\MetalTraderBankAccount;
 use App\Models\MetalTraderFiatWithdrawal;
@@ -22,13 +22,22 @@ class MetalTraderFiatWithdrawalService
     ) {
     }
 
-    public function create(MetalTrader $trader, string $amount, int $bankAccountId): MetalTraderFiatWithdrawal
-    {
+    public function create(
+        MetalTrader $trader,
+        string $amount,
+        int $bankAccountId,
+        ?string $referenceNumber = null,
+        ?Admin $createdBy = null
+    ): MetalTraderFiatWithdrawal {
         if (!preg_match('/^\d+$/', $amount) || bccomp($amount, '0', 0) <= 0) {
             throw ValidationException::withMessages([
                 'amount' => ['مبلغ برداشت باید عددی صحیح و بزرگ‌تر از صفر باشد.'],
             ]);
         }
+
+        $referenceNumber = $referenceNumber !== null && $referenceNumber !== ''
+            ? trim($referenceNumber)
+            : null;
 
         $bankAccount = MetalTraderBankAccount::query()
             ->where('metal_trader_id', $trader->id)
@@ -47,7 +56,7 @@ class MetalTraderFiatWithdrawalService
             ]);
         }
 
-        $withdrawal = DB::transaction(function () use ($trader, $amount, $bankAccount) {
+        $withdrawal = DB::transaction(function () use ($trader, $amount, $bankAccount, $referenceNumber, $createdBy) {
             $wallet = $this->lockFiatWallet($trader->id);
             $before = $this->decimal((string) ($wallet->available_balance ?? '0'));
 
@@ -67,7 +76,13 @@ class MetalTraderFiatWithdrawalService
                 'sheba' => $bankAccount->sheba,
                 'amount' => $amount,
                 'status' => MetalTraderFiatWithdrawal::STATUS_PENDING,
+                'reference_number' => $referenceNumber,
+                'created_by' => $createdBy?->id,
             ]);
+
+            $description = $createdBy
+                ? 'ثبت درخواست برداشت تومان توسط اپراتور به شبا ' . $bankAccount->sheba
+                : 'درخواست برداشت تومان به شبا ' . $bankAccount->sheba;
 
             $tx = WalletTransaction::create([
                 'metal_trader_wallet_id' => $wallet->id,
@@ -78,12 +93,13 @@ class MetalTraderFiatWithdrawalService
                 'type' => 'withdraw',
                 'balance_before' => $before,
                 'balance_after' => $after,
-                'description' => 'درخواست برداشت تومان به شبا ' . $bankAccount->sheba,
+                'reference_number' => $referenceNumber,
+                'description' => $description,
             ]);
 
             $withdrawal->update(['wallet_transaction_id' => $tx->id]);
 
-            return $withdrawal->fresh(['bankAccount', 'walletTransaction']);
+            return $withdrawal->fresh(['bankAccount', 'walletTransaction', 'creator:id,full_name']);
         });
 
         $this->notifyAdminsAboutPending();
@@ -113,7 +129,7 @@ class MetalTraderFiatWithdrawalService
         });
     }
 
-    public function markPaid(MetalTraderFiatWithdrawal $withdrawal, User $admin, ?string $notes = null): MetalTraderFiatWithdrawal
+    public function markPaid(MetalTraderFiatWithdrawal $withdrawal, Admin $admin, ?string $notes = null): MetalTraderFiatWithdrawal
     {
         if (!$withdrawal->isPending()) {
             throw new LogicException('فقط درخواست‌های در انتظار قابل تایید پرداخت هستند.');
@@ -143,7 +159,7 @@ class MetalTraderFiatWithdrawalService
 
     public function reject(
         MetalTraderFiatWithdrawal $withdrawal,
-        User $admin,
+        Admin $admin,
         int $rejectionReasonId
     ): MetalTraderFiatWithdrawal {
         if (!$withdrawal->isPending()) {

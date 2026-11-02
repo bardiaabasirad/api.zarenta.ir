@@ -25,6 +25,12 @@ class MetalTraderFiatWithdrawal extends Model
         'reviewed_by',
         'reviewed_at',
         'notes',
+        'reference_number',
+        'created_by',
+    ];
+
+    protected $appends = [
+        'source',
     ];
 
     protected $casts = [
@@ -48,7 +54,17 @@ class MetalTraderFiatWithdrawal extends Model
 
     public function reviewer(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'reviewed_by');
+        return $this->belongsTo(Admin::class, 'reviewed_by');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(Admin::class, 'created_by');
+    }
+
+    public function getSourceAttribute(): string
+    {
+        return $this->created_by ? 'admin' : 'trader';
     }
 
     public function walletTransaction(): BelongsTo

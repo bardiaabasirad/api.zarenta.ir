@@ -274,6 +274,46 @@ if (!function_exists('getDecimalCount')) {
     }
 }
 
+if (!function_exists('format_pdf_number')) {
+    /**
+     * فرمت عدد برای PDF: جداکننده هزارگان و حذف اعشارهای زائد
+     * مثال: 50000000.000 → 50,000,000 | 10.500 → 10.5
+     */
+    function format_pdf_number($number, int $maxDecimals = 3): string
+    {
+        if ($number === null || $number === '') {
+            return '0';
+        }
+
+        $value = (string) $number;
+        if (!is_numeric($value)) {
+            return $value;
+        }
+
+        $decimals = min(getDecimalCount($value), $maxDecimals);
+
+        return number_format((float) $value, $decimals, '.', ',');
+    }
+}
+
+if (!function_exists('wallet_transaction_unit_label')) {
+    /**
+     * واحد نمایشی تراکنش کیف‌پول بر اساس واحد فلز کیف (نه type)
+     */
+    function wallet_transaction_unit_label($item): string
+    {
+        $unit = is_array($item)
+            ? ($item['metal_item_unit'] ?? null)
+            : ($item->metal_item_unit ?? null);
+
+        return match ($unit) {
+            'gram' => 'گرم',
+            'count' => 'عدد',
+            default => 'تومان',
+        };
+    }
+}
+
 if (!function_exists('jalali')) {
     function jalali($date, $format = 'Y/m/d')
     {

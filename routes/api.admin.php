@@ -358,6 +358,7 @@ Route::prefix('v1/admin')
             Route::get('create', [MetalTraderController::class, 'create']);
             Route::get('{metal_trader}', [MetalTraderController::class, 'show']);
             Route::get('{metal_trader}/balance', [MetalTraderController::class, 'balance']);
+            Route::get('{metal_trader}/fiat-withdrawal-meta', [MetalTraderFiatWithdrawalController::class, 'formMeta']);
             Route::patch('{metal_trader}', [MetalTraderController::class, 'update']);
             Route::patch('{metal_trader}/product-settings', [MetalTraderController::class, 'updateProductSettings']);
             Route::get('{metal_trader}/log', [MetalTraderController::class, 'log']);
@@ -377,6 +378,7 @@ Route::prefix('v1/admin')
         Route::prefix('metal-trader-fiat-withdrawals')->group(function () {
             Route::get('rejection-reasons', [MetalTraderFiatWithdrawalController::class, 'rejectionReasons']);
             Route::get('/', [MetalTraderFiatWithdrawalController::class, 'index']);
+            Route::post('/', [MetalTraderFiatWithdrawalController::class, 'store']);
             Route::post('{withdrawal}/mark-paid', [MetalTraderFiatWithdrawalController::class, 'markPaid']);
             Route::post('{withdrawal}/reject', [MetalTraderFiatWithdrawalController::class, 'reject']);
         });

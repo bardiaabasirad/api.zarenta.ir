@@ -298,10 +298,19 @@ if (!function_exists('format_pdf_number')) {
 
 if (!function_exists('wallet_transaction_unit_label')) {
     /**
-     * واحد نمایشی تراکنش کیف‌پول بر اساس واحد فلز کیف (نه type)
+     * واحد نمایشی تراکنش کیف‌پول:
+     * تراکنش‌های فیات (حتی روی کیف فلزی) همیشه تومان‌اند.
      */
     function wallet_transaction_unit_label($item): string
     {
+        $type = is_array($item)
+            ? ($item['type'] ?? null)
+            : ($item->type ?? null);
+
+        if (\App\Models\WalletTransaction::isFiatType((string) $type)) {
+            return 'تومان';
+        }
+
         $unit = is_array($item)
             ? ($item['metal_item_unit'] ?? null)
             : ($item->metal_item_unit ?? null);
@@ -311,6 +320,41 @@ if (!function_exists('wallet_transaction_unit_label')) {
             'count' => 'عدد',
             default => 'تومان',
         };
+    }
+}
+
+if (!function_exists('wallet_transaction_signed_amount')) {
+    /**
+     * مقدار تراکنش با علامت اثر روی موجودی.
+     */
+    function wallet_transaction_signed_amount($item): string
+    {
+        if (is_object($item) && isset($item->signed_amount)) {
+            return (string) $item->signed_amount;
+        }
+
+        if (is_array($item) && array_key_exists('signed_amount', $item)) {
+            return (string) $item['signed_amount'];
+        }
+
+        $before = is_array($item)
+            ? (string) ($item['balance_before'] ?? '0')
+            : (string) ($item->balance_before ?? '0');
+        $after = is_array($item)
+            ? (string) ($item['balance_after'] ?? '0')
+            : (string) ($item->balance_after ?? '0');
+        $type = is_array($item)
+            ? ($item['type'] ?? null)
+            : ($item->type ?? null);
+
+        $scale = \App\Models\WalletTransaction::isFiatType((string) $type) ? 0 : 3;
+        $signed = bcsub($after, $before, $scale);
+
+        if (str_contains($signed, '.')) {
+            $signed = rtrim(rtrim($signed, '0'), '.');
+        }
+
+        return $signed === '-0' ? '0' : $signed;
     }
 }
 

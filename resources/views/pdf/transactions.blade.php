@@ -122,7 +122,7 @@
                 <td class="px-2 py-2 whitespace-nowrap border border-gray-200" dir="ltr">{{jalali($item->created_at)}}</td>
                 <td class="px-2 py-2 text-start border border-gray-200 min-w-20">{{ $item->description }}</td>
                 <td class="px-2 py-2 border border-gray-200">
-                    <span dir="ltr">{{ format_pdf_number($item->amount) }}</span>
+                    <span dir="ltr">{{ format_pdf_number(wallet_transaction_signed_amount($item)) }}</span>
                     {{ wallet_transaction_unit_label($item) }}
                 </td>
                 <td class="px-2 py-2 whitespace-nowrap border border-gray-200">

@@ -7,6 +7,7 @@ use App\Models\MetalItem;
 use App\Models\MetalItemAutoOrderSetting;
 use App\Models\MetalOrder;
 use App\Models\Setting;
+use App\Services\Metal\MetalOrderAssetRiskService;
 use App\Services\SelectedMetalPriceService;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
@@ -78,6 +79,8 @@ class SettingsChanged implements ShouldBroadcastNow
             ])
             ->get();
 
+        $metalOrders = app(MetalOrderAssetRiskService::class)->attachToOrders($metalOrders);
+
         $redisKey = 'market_opening_sms:' . now()->format('Y-m-d');
         $isSMSSentToday = Redis::exists($redisKey) ? 'yes' : 'no';
 
@@ -112,7 +115,7 @@ class SettingsChanged implements ShouldBroadcastNow
             'latest_raw_price_from_selected_source' => $latestRawPriceFromSelectedSource,
             'market_status' => $allSettings->get('market_status'),
             'validity_period_of_melted_order_before_expires' => $allSettings->get('validity_period_of_melted_order_before_expires')?->option_value,
-            'orders' => $metalOrders,
+            'orders' => $metalOrders->values(),
             'general_settings' => $generalSettings,
             'client_messages' => Redis::get('client:messages'),
             'submit_outbound_gold_orders_by_bot' => $allSettings->get('submit_outbound_gold_orders_by_bot'),

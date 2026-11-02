@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\StockMode;
 use App\Models\MetalOrder;
 use App\Models\MetalOrderLog;
+use App\Services\Metal\MetalOrderAssetRiskService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Arr;
@@ -53,6 +54,19 @@ class MetalOrderService
                 $attributes['extra_data'],
                 self::getExtraDataByStatus($attributes['status'], $metalOrder->extra_data ?? [])
             );
+        }
+
+        // محاسبه سروری نسبت دارایی هنگام رسیدگی دستی/تغییر وضعیت نهایی
+        if (
+            isset($attributes['status'])
+            && in_array($attributes['status'], ['succeed', 'rejected'], true)
+            && $metalOrder->created_type === 'metal_trader'
+            && ! isset($attributes['extra_data']['asset_risk'])
+        ) {
+            $assetRisk = app(MetalOrderAssetRiskService::class)->assess($metalOrder);
+            if ($assetRisk !== null) {
+                $attributes['extra_data']['asset_risk'] = $assetRisk;
+            }
         }
 
         $original = $metalOrder->getOriginal();

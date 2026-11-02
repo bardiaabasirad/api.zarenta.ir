@@ -3,8 +3,10 @@
 namespace App\Actions\MetalOrder;
 
 use App\Models\MetalOrder;
+use App\Models\MetalTrader;
 use App\Models\Setting;
 use App\Services\Hamtala\HamtalaOrderExchangeService;
+use App\Services\Metal\MetalOrderAssetRiskService;
 use App\Services\MetalOrderService;
 use Carbon\Carbon;
 use DB;
@@ -15,7 +17,8 @@ class CheckStaleMetalOrdersAction
     private const CHUNK_SIZE = 200;
 
     public function __construct(
-        private readonly HamtalaOrderExchangeService $hamtalaOrderExchangeService
+        private readonly HamtalaOrderExchangeService $hamtalaOrderExchangeService,
+        private readonly MetalOrderAssetRiskService $assetRiskService
     ) {}
 
     public function execute(): void
@@ -53,7 +56,7 @@ class CheckStaleMetalOrdersAction
             $metalOrder = DB::transaction(function () use ($metalOrderId, $staleThreshold, $service) {
                 $metalOrder = MetalOrder::query()
                     ->whereKey($metalOrderId)
-                    ->with('leverageCheck')
+                    ->with(['leverageCheck', 'creator'])
                     ->lockForUpdate()
                     ->first();
 
@@ -101,6 +104,28 @@ class CheckStaleMetalOrdersAction
                 }
 
                 if ($metalOrder->created_type == 'metal_trader') {
+                    $trader = $metalOrder->creator instanceof MetalTrader
+                        ? $metalOrder->creator
+                        : MetalTrader::query()->find($metalOrder->created_id);
+
+                    $assetRisk = $this->assetRiskService->assess($metalOrder, $trader);
+
+                    if ($assetRisk && ! $assetRisk['is_sufficient']) {
+                        MetalOrderService::markAsRejected($metalOrder, [
+                            'cause' => 'insufficient_asset_ratio',
+                            'message' => 'کمبود نسبت دارایی به مبلغ سفارش',
+                            'rejected_at' => Carbon::now(),
+                            'asset_risk' => $assetRisk,
+                        ]);
+
+                        Log::channel('checkStaleMetalOrders')->info('Stale order rejected: insufficient asset ratio', [
+                            'metal_order_id' => $metalOrder->id,
+                            'asset_risk' => $assetRisk,
+                        ]);
+
+                        return null;
+                    }
+
                     $leverageStatus = $metalOrder->leverageCheck?->status;
 
                     if ($leverageStatus === null) {

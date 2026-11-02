@@ -16,6 +16,7 @@ use App\Models\MetalOrderRejectionReason;
 use App\Models\MetalTrader;
 use App\Models\PriceSource;
 use App\Models\Setting;
+use App\Services\Metal\MetalOrderAssetRiskService;
 use App\Services\SelectedMetalPriceService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -77,6 +78,8 @@ class SettingController extends Controller
             ])
             ->get();
 
+        $metalOrders = app(MetalOrderAssetRiskService::class)->attachToOrders($metalOrders);
+
         $redisKey = 'market_opening_sms:' . now()->format('Y-m-d');
         $isSMSSentToday = Redis::exists($redisKey) ? 'yes' : 'no';
 
@@ -110,7 +113,7 @@ class SettingController extends Controller
             'market_status' => $allSettings->get('market_status'),
             'auto_order_dispatch_enabled' => $allSettings->get('auto_order_dispatch_enabled'),
             'validity_period_of_melted_order_before_expires' => $allSettings->get('validity_period_of_melted_order_before_expires')?->option_value,
-            'orders' => $metalOrders,
+            'orders' => $metalOrders->values(),
             'cancel_reasons' => MetalOrderRejectionReason::get(),
             'general_settings' => $generalSettings,
             'client_messages' => Redis::get('client:messages'),

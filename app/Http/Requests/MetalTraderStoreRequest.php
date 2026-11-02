@@ -13,6 +13,7 @@ class MetalTraderStoreRequest extends FormRequest
             'phone' => ['required','regex:/^9\d{9}$/','unique:users,phone'],
             'kimi_account_id' => ['sometimes','nullable'],
             'trade_leverage' => ['sometimes','nullable','integer','min:1','max:255'],
+            'asset_risk_threshold' => ['sometimes','nullable','numeric','min:0','max:100'],
             'dealing_group_id' => ['sometimes','nullable','exists:dealing_groups,id'],
         ];
     }

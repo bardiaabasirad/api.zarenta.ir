@@ -24,6 +24,7 @@ class MetalTrader extends Authenticatable
         'dealing_group_id',
         'kimi_account_id',
         'trade_leverage',
+        'asset_risk_threshold',
         'phone',
         'avatar',
         'balance',
@@ -54,6 +55,7 @@ class MetalTrader extends Authenticatable
             'last_seen' => 'datetime',
             'webhook_secret' => 'encrypted',
             'webhook_enabled' => 'boolean',
+            'asset_risk_threshold' => 'float',
         ];
     }
 

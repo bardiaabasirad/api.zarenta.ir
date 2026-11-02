@@ -3,6 +3,7 @@
 namespace App\Events;
 
 use App\Models\MetalOrder;
+use App\Services\Metal\MetalOrderAssetRiskService;
 use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
@@ -35,6 +36,8 @@ class MetalOrderUpdated implements ShouldBroadcastNow
             ])
             ->get();
 
-        return $metalOrders->toArray();
+        $metalOrders = app(MetalOrderAssetRiskService::class)->attachToOrders($metalOrders);
+
+        return $metalOrders->values()->toArray();
     }
 }

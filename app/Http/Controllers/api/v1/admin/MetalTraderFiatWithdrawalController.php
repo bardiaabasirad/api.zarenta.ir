@@ -8,6 +8,7 @@ use App\Models\MetalTraderBankAccount;
 use App\Models\MetalTraderFiatWithdrawal;
 use App\Models\MetalTraderFiatWithdrawalRejectionReason;
 use App\Models\MetalTraderWallet;
+use App\Services\Metal\MetalOrderAssetRiskService;
 use App\Services\MetalTraderFiatWithdrawalService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class MetalTraderFiatWithdrawalController extends Controller
 {
     public function __construct(
         private readonly MetalTraderFiatWithdrawalService $withdrawalService,
+        private readonly MetalOrderAssetRiskService $assetRiskService,
     ) {
     }
 
@@ -27,7 +29,7 @@ class MetalTraderFiatWithdrawalController extends Controller
 
         $query = MetalTraderFiatWithdrawal::query()
             ->with([
-                'trader:id,name,phone',
+                'trader:id,name,phone,asset_risk_threshold',
                 'bankAccount:id,sheba,status',
                 'reviewer:id,full_name',
                 'creator:id,full_name',
@@ -56,8 +58,12 @@ class MetalTraderFiatWithdrawalController extends Controller
             });
         }
 
+        $paginator = $query->paginate($request->input('count') ?? 50);
+        $enriched = $this->assetRiskService->attachToWithdrawals($paginator->getCollection());
+        $paginator->setCollection($enriched->values());
+
         return response()->json([
-            'data' => $query->paginate($request->input('count') ?? 50),
+            'data' => $paginator,
         ]);
     }
 

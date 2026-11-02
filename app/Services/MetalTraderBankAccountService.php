@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Events\SidebarUpdate;
-use App\Models\User;
+use App\Models\Admin;
 use App\Models\MetalTrader;
 use App\Models\MetalTraderBankAccount;
 use App\Models\MetalTraderBankAccountRejectionReason;
@@ -89,7 +89,7 @@ class MetalTraderBankAccountService
         }
     }
 
-    public function approve(MetalTraderBankAccount $account, User $admin): MetalTraderBankAccount
+    public function approve(MetalTraderBankAccount $account, Admin $admin): MetalTraderBankAccount
     {
         if (!$account->isPending()) {
             throw new LogicException('فقط حساب‌های در انتظار بررسی قابل تایید هستند.');
@@ -121,7 +121,7 @@ class MetalTraderBankAccountService
 
     public function reject(
         MetalTraderBankAccount $account,
-        User $admin,
+        Admin $admin,
         int $rejectionReasonId
     ): MetalTraderBankAccount {
         if ($account->isRejected()) {

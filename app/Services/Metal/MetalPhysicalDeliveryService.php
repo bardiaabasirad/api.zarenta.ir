@@ -48,7 +48,7 @@ class MetalPhysicalDeliveryService
             throw new LogicException('نرخ کارمزد تحویل نمی‌تواند منفی باشد.');
         }
 
-        return $rate;
+        return $this->trimTrailingZeros($rate);
     }
 
     public function updateFeeRatePercent(string $percent): string
@@ -58,19 +58,21 @@ class MetalPhysicalDeliveryService
             throw new InvalidArgumentException('نرخ کارمزد نامعتبر است.');
         }
 
+        $displayRate = $this->trimTrailingZeros($rate);
+
         $setting = Setting::query()->where('option_key', self::SETTING_FEE_PERCENT)->first();
         if (!$setting) {
             DB::table('settings')->insert([
                 'option_key' => self::SETTING_FEE_PERCENT,
                 'option_name' => 'نرخ کارمزد تحویل فیزیکی فلز (درصد)',
-                'option_value' => $rate,
+                'option_value' => $displayRate,
             ]);
         } else {
-            $setting->option_value = $rate;
+            $setting->option_value = $displayRate;
             $setting->save();
         }
 
-        return $rate;
+        return $displayRate;
     }
 
     /**
@@ -786,6 +788,17 @@ class MetalPhysicalDeliveryService
         }
 
         return bcadd((string) $value, '0', $scale);
+    }
+
+    private function trimTrailingZeros(string $value): string
+    {
+        if (!str_contains($value, '.')) {
+            return $value;
+        }
+
+        $trimmed = rtrim(rtrim($value, '0'), '.');
+
+        return $trimmed === '' || $trimmed === '-' ? '0' : $trimmed;
     }
 
     private function assertPositive(string $value, int $scale, string $field): void

@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Enums\OrderStatus;
-use App\Events\OrderUpdated;
 use App\Models\Order;
 use App\Models\Variety;
 use App\Services\OrderLogService;
@@ -56,22 +55,6 @@ class UnpaidOrderCancellationJob implements ShouldQueue
                     }
                 }
 
-                $orderData = [
-                    'id' => $order->id,
-                    'code' => $order->code,
-                    'status' => OrderStatus::CANCELED,
-                    'user_id' => $order->user_id,
-                    'sale' => $order->sale,
-                    'purchase' => $order->purchase,
-                    'preferred_shipping_method' => $order->preferred_shipping_method,
-                    'user' => $order->user
-                ];
-
-                try {
-                    event(new OrderUpdated($orderData));
-                } catch (\Exception $exception){
-
-                }
             }
 
             Order::where('status', OrderStatus::WAIT_PAYMENT)

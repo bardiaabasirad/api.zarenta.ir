@@ -86,6 +86,35 @@ class MetalMaturityService
         return MetalMaturity::allowedSourceMaturities($orderMaturity);
     }
 
+    /**
+     * فلزهای مجاز منبع خزانه برای پوشش:
+     * خود فلز سفارش + فلز حاضر مقصد تسویه (settlement_metal_item_id) در صورت وجود.
+     *
+     * در کاتالوگ زرنتا، T0/T1/T2 معمولاً metal_item جدا هستند و موجودی حاضر
+     * روی فلز spot ثبت می‌شود؛ بدون این گسترش، پوشش سفارش تعهدی از موجودی حاضر ممکن نیست.
+     *
+     * @return list<int>
+     */
+    public function allowedSourceMetalItemIds(MetalOrder $order): array
+    {
+        $ids = [(int) $order->metal_item_id];
+
+        $item = ($order->relationLoaded('metalItem') && $order->metalItem)
+            ? $order->metalItem
+            : MetalItem::withoutGlobalScope('visible')->find($order->metal_item_id);
+
+        if ($item && $item->settlement_metal_item_id) {
+            $ids[] = (int) $item->settlement_metal_item_id;
+        }
+
+        return array_values(array_unique(array_filter($ids)));
+    }
+
+    public function isSourceMetalItemAllowed(MetalOrder $order, int $lotMetalItemId): bool
+    {
+        return in_array($lotMetalItemId, $this->allowedSourceMetalItemIds($order), true);
+    }
+
     public function isSourceAllowed(string $orderMaturity, string $sourceMaturity): bool
     {
         return in_array($sourceMaturity, $this->allowedSourceMaturities($orderMaturity), true);

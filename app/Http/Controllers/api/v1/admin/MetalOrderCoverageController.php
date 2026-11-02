@@ -239,22 +239,32 @@ class MetalOrderCoverageController extends Controller
     {
         $this->authorizeCoverage();
 
+        $isUserSell = $lot->source_type === \App\Constants\MetalTreasurySourceType::USER_WALLET_SELL;
+
         $data = $request->validate([
             'qty' => 'required|numeric|gt:0',
             'notes' => 'nullable|string|max:2000',
             'idempotency_key' => 'nullable|string|max:128',
+            'sale_unit_price' => ($isUserSell ? 'required' : 'nullable') . '|numeric|min:0',
         ]);
 
-        $lot = $this->coverage->externalOutFromPhysicalLot(
+        $result = $this->coverage->externalOutFromPhysicalLot(
             $lot->id,
             (string) $data['qty'],
             $data['idempotency_key'] ?? null,
             $data['notes'] ?? null,
+            isset($data['sale_unit_price']) ? (string) $data['sale_unit_price'] : null,
         );
 
+        $message = $isUserSell
+            ? 'خروج سنتی فروش کاربر ثبت شد و سود/زیان سفارش به‌روز شد.'
+            : 'خروج سنتی ثبت شد (بدون P&L).';
+
         return response()->json([
-            'message' => 'خروج سنتی ثبت شد (بدون P&L).',
-            'data' => $lot,
+            'message' => $message,
+            'data' => $result['lot'],
+            'allocation' => $result['allocation'],
+            'realized_pnl' => $result['realized_pnl'],
         ]);
     }
 
@@ -393,9 +403,10 @@ class MetalOrderCoverageController extends Controller
     {
         $maturity = $this->maturity->codeForOrder($order);
         $allowed = $this->maturity->allowedSourceMaturities($maturity);
+        $sourceMetalIds = $this->maturity->allowedSourceMetalItemIds($order);
 
         $query = MetalTreasuryLot::query()
-            ->where('metal_item_id', $order->metal_item_id)
+            ->whereIn('metal_item_id', $sourceMetalIds)
             ->whereIn('maturity_code', $allowed)
             ->where('status', 'OPEN')
             ->where('remaining_qty', '>', 0)

@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\OrderStatus;
-use App\Events\OrderUpdated;
 use App\Jobs\SmsJob;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -72,25 +71,11 @@ class Order extends Model
             $this->incrementVarietyCounts();
         }
 
-        // Check if the order status has changed to fire order update event
+        // Notify user when order status changes
         if (array_key_exists('status', $dirty)) {
             try {
                 $this->notifyToUser();
-
-                $orderData = [
-                    'id' => $this->id,
-                    'code' => $this->code,
-                    'status' => $this->status,
-                    'user_id' => $this->user_id,
-                    'sale' => $this->sale,
-                    'purchase' => $this->purchase,
-                    'preferred_shipping_method' => $this->preferred_shipping_method,
-                    'user' => $this->user
-                ];
-
-                event(new OrderUpdated($orderData));
-            }
-            catch (\Exception $e) {}
+            } catch (\Exception $e) {}
         }
 
         // Calculate which attributes have actually changed after the update

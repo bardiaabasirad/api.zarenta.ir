@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\api\v1\general;
 
 use App\Enums\OrderStatus;
-use App\Events\OrderUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RepaymentRequest;
 use App\Models\MarketPrice;
@@ -91,19 +90,6 @@ class OrderController extends Controller
         $order->save();
 
         $order->load('items');
-
-        $orderData = [
-            'id' => $order->id,
-            'code' => $order->code,
-            'status' => OrderStatus::CANCELED,
-            'user_id' => $order->user_id,
-            'sale' => $order->sale,
-            'purchase' => $order->purchase,
-            'preferred_shipping_method' => $order->preferred_shipping_method,
-            'user' => $order->user
-        ];
-
-        event(new OrderUpdated($orderData));
 
         return response()->json([
             'order' => $order,

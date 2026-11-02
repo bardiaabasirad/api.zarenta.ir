@@ -8,6 +8,7 @@ class MetalTreasurySourceType
     public const PARTNER = 'PARTNER';
     public const USER_WALLET_SELL = 'USER_WALLET_SELL';
     public const PHYSICAL_PURCHASE = 'PHYSICAL_PURCHASE';
+    public const TRADITIONAL_EXIT = 'TRADITIONAL_EXIT';
     public const MANUAL_ADJUSTMENT = 'MANUAL_ADJUSTMENT';
     public const MIGRATION = 'MIGRATION';
 
@@ -29,6 +30,7 @@ class MetalTreasurySourceType
             self::PARTNER,
             self::USER_WALLET_SELL,
             self::PHYSICAL_PURCHASE,
+            self::TRADITIONAL_EXIT,
         ];
     }
 }

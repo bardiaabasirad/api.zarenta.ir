@@ -2,8 +2,6 @@
 
 namespace App\Observers;
 
-use App\Events\DashboardMetalOrderCreated;
-use App\Events\DashboardMetalOrderUpdated;
 use App\Events\MetalOrderUpdated;
 use App\Events\MetalTraderOrderCreated;
 use App\Events\MetalTraderOrderUpdated;
@@ -33,8 +31,6 @@ class MetalOrderObserver
                 MetalTraderOrderCreated::dispatch($metalOrder);
             }
 
-            DashboardMetalOrderCreated::dispatch($metalOrder);
-
         } catch (\Exception $exception) {
             Log::error('MetalOrderObserver created: ' . $exception->getMessage());
         }
@@ -54,7 +50,6 @@ class MetalOrderObserver
 
             MetalOrderUpdated::dispatch();
             SidebarUpdate::dispatch('metal_order', 'completed');
-            DashboardMetalOrderUpdated::dispatch($metalOrder);
 
         } catch (\Exception $exception) {
             Log::error('MetalOrderObserver updated: ' . $exception->getMessage());

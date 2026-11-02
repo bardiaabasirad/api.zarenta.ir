@@ -4,7 +4,6 @@ namespace App\Http\Controllers\api\v1\general;
 
 use App\Constants\AppConstants;
 use App\Enums\OrderStatus;
-use App\Events\OrderCreated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CheckCartRequest;
 use App\Http\Requests\UpdateCartQuantityRequest;
@@ -940,23 +939,6 @@ class CartController extends Controller
                 ]
             ]);
 
-            $orderData = [
-                'id' => $order->id,
-                'code' => $order->code,
-                'status' => $order->status,
-                'user_id' => $order->user_id,
-                'sale' => $order->sale,
-                'purchase' => $order->purchase,
-                'preferred_shipping_method' => $order->preferred_shipping_method,
-                'user' => $order->user
-            ];
-
-            try {
-                event(new OrderCreated($orderData));
-            } catch (\Exception $exception) {
-                Log::error('Socket error on Azki order confirmation: ' . $exception->getMessage());
-            }
-
             return redirect("https://zhikgold.ir/checkout/confirmation/" . request()->ticketId);
         }
     }
@@ -1069,23 +1051,6 @@ class CartController extends Controller
                 ]
             ]);
 
-            $orderData = [
-                'id' => $order->id,
-                'code' => $order->code,
-                'status' => $order->status,
-                'user_id' => $order->user_id,
-                'sale' => $order->sale,
-                'purchase' => $order->purchase,
-                'preferred_shipping_method' => $order->preferred_shipping_method,
-                'user' => $order->user
-            ];
-
-            try {
-                event(new OrderCreated($orderData));
-            } catch (\Exception $exception) {
-                Log::error('Socket error on Jibit order confirmation: ' . $exception->getMessage());
-            }
-
             return redirect("https://zhikgold.ir/checkout/confirmation/" . request()->purchaseId);
         }
     }
@@ -1095,24 +1060,7 @@ class CartController extends Controller
      */
     private function notifyOrderEvent(Order $order): void
     {
-        try {
-            $this->notifyToOperators($order);
-
-            $orderData = [
-                'id' => $order->id,
-                'code' => $order->code,
-                'status' => $order->status,
-                'user_id' => $order->user_id,
-                'sale' => $order->sale,
-                'purchase' => $order->purchase,
-                'preferred_shipping_method' => $order->preferred_shipping_method,
-                'user' => $order->user
-            ];
-
-            event(new OrderCreated($orderData));
-        } catch (\Exception $exception) {
-            throw $exception;
-        }
+        $this->notifyToOperators($order);
     }
 
     public function notifyToOperators($order)

@@ -53,16 +53,17 @@ class MetalOrderCoverageService
             $order = $this->maturity->ensureOrderSettlement($order);
             $orderMaturity = $this->maturity->codeForOrder($order);
             $allowed = $this->maturity->allowedSourceMaturities($orderMaturity);
+            $sourceMetalIds = $this->maturity->allowedSourceMetalItemIds($order);
             $openQty = $this->ledger->decimal($order->open_qty, MetalTreasuryLedgerService::METAL_SCALE, 'open_qty');
 
-            $available = $this->ledger->availableQty((int) $order->metal_item_id, $allowed);
+            $available = $this->ledger->availableQty($sourceMetalIds, $allowed);
             $fromTreasury = $this->ledger->minQty($openQty, $available);
 
             $treasuryCovered = '0';
 
             if (bccomp($fromTreasury, '0', MetalTreasuryLedgerService::METAL_SCALE) > 0) {
                 $chunks = $this->ledger->consumeFifo(
-                    metalItemId: (int) $order->metal_item_id,
+                    metalItemId: $sourceMetalIds,
                     allowedMaturities: $allowed,
                     neededQty: $fromTreasury,
                     idempotencyPrefix: $idempotencyKey . ':treasury',
@@ -136,6 +137,7 @@ class MetalOrderCoverageService
 
             $orderMaturity = $this->maturity->codeForOrder($order);
             $allowed = $this->maturity->allowedSourceMaturities($orderMaturity);
+            $sourceMetalIds = $this->maturity->allowedSourceMetalItemIds($order);
 
             if ($lotId) {
                 $lot = MetalTreasuryLot::query()->whereKey($lotId)->lockForUpdate()->firstOrFail();
@@ -163,7 +165,7 @@ class MetalOrderCoverageService
                 );
             } else {
                 $chunks = $this->ledger->consumeFifo(
-                    metalItemId: (int) $order->metal_item_id,
+                    metalItemId: $sourceMetalIds,
                     allowedMaturities: $allowed,
                     neededQty: $qty,
                     idempotencyPrefix: $idempotencyKey,
@@ -365,18 +367,77 @@ class MetalOrderCoverageService
         });
     }
 
+    /**
+     * خروج سنتی از لات آزاد.
+     * برای لات فروش کاربر، نرخ فروش سنتی الزامی است و P&L روی سفارش فروش کاربر ثبت می‌شود.
+     *
+     * @return array{lot: MetalTreasuryLot, allocation: ?MetalOrderCoverageAllocation, realized_pnl: ?string}
+     */
     public function externalOutFromPhysicalLot(
         int $lotId,
         string $qty,
         ?string $idempotencyKey = null,
         ?string $notes = null,
-    ): MetalTreasuryLot {
+        ?string $saleUnitPrice = null,
+    ): array {
         $idempotencyKey = MetalTreasuryLedgerService::normalizeIdempotencyKey(
             $idempotencyKey ?: ('eo:' . $lotId . ':' . Str::lower(Str::random(12)))
         );
 
-        return DB::transaction(function () use ($lotId, $qty, $idempotencyKey, $notes) {
+        return DB::transaction(function () use ($lotId, $qty, $idempotencyKey, $notes, $saleUnitPrice) {
             $lot = MetalTreasuryLot::query()->whereKey($lotId)->lockForUpdate()->firstOrFail();
+            $qty = $this->ledger->decimal($qty, MetalTreasuryLedgerService::METAL_SCALE, 'qty');
+            $this->ledger->assertPositiveQty($qty);
+
+            $isUserSell = $lot->source_type === MetalTreasurySourceType::USER_WALLET_SELL;
+            $allocation = null;
+            $realizedPnl = null;
+            $sellOrderId = null;
+
+            $meta = ['notes' => $notes];
+
+            if ($isUserSell) {
+                if ($saleUnitPrice === null || $saleUnitPrice === '') {
+                    throw new InvalidArgumentException('برای خروج سنتی فروش کاربر، نرخ فروش الزامی است.');
+                }
+
+                if (!$lot->source_id) {
+                    throw new LogicException('لات فروش کاربر به سفارش فروش متصل نیست.');
+                }
+
+                $sellOrder = MetalOrder::query()->whereKey($lot->source_id)->lockForUpdate()->firstOrFail();
+
+                if ($sellOrder->order_type !== 'sell') {
+                    throw new LogicException('منبع لات فروش کاربر معتبر نیست.');
+                }
+
+                $sale = $this->ledger->decimal($saleUnitPrice, MetalTreasuryLedgerService::PRICE_SCALE, 'sale_unit_price');
+                $cost = $this->ledger->decimal($lot->unit_cost, MetalTreasuryLedgerService::PRICE_SCALE, 'unit_cost');
+                $realizedPnl = bcmul(
+                    $qty,
+                    bcsub($sale, $cost, MetalTreasuryLedgerService::PRICE_SCALE),
+                    MetalTreasuryLedgerService::PRICE_SCALE
+                );
+                $sellOrderId = $sellOrder->id;
+
+                $allocation = $this->createTraditionalExitAllocation(
+                    sellOrder: $sellOrder,
+                    lot: $lot,
+                    qty: $qty,
+                    saleUnitPrice: $sale,
+                    costUnitPrice: $cost,
+                    realizedPnl: $realizedPnl,
+                    idempotencyKey: MetalTreasuryLedgerService::normalizeIdempotencyKey($idempotencyKey . ':alloc'),
+                );
+
+                $meta = array_merge($meta, [
+                    'pnl_excluded' => false,
+                    'sale_unit_price' => $sale,
+                    'user_unit_price' => $cost,
+                    'realized_pnl' => $realizedPnl,
+                    'sell_order_id' => $sellOrderId,
+                ]);
+            }
 
             $this->ledger->externalOut(
                 lot: $lot,
@@ -385,11 +446,60 @@ class MetalOrderCoverageService
                 actorId: Auth::id(),
                 actorType: $this->actorType(),
                 reason: 'traditional_market_sale',
-                meta: ['notes' => $notes],
+                meta: $meta,
+                metalOrderId: $sellOrderId,
+                allocationId: $allocation?->id,
             );
 
-            return $lot->fresh();
+            return [
+                'lot' => $lot->fresh(),
+                'allocation' => $allocation,
+                'realized_pnl' => $realizedPnl,
+            ];
         });
+    }
+
+    public function createTraditionalExitAllocation(
+        MetalOrder $sellOrder,
+        MetalTreasuryLot $lot,
+        string $qty,
+        string $saleUnitPrice,
+        string $costUnitPrice,
+        string $realizedPnl,
+        string $idempotencyKey,
+    ): MetalOrderCoverageAllocation {
+        $idempotencyKey = MetalTreasuryLedgerService::normalizeIdempotencyKey($idempotencyKey);
+
+        $existing = MetalOrderCoverageAllocation::query()
+            ->where('idempotency_key', $idempotencyKey)
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        return MetalOrderCoverageAllocation::create([
+            'metal_order_id' => $sellOrder->id,
+            'metal_item_id' => $sellOrder->metal_item_id,
+            'source_type' => MetalTreasurySourceType::TRADITIONAL_EXIT,
+            'source_id' => $lot->id,
+            'lot_id' => $lot->id,
+            'attempt_id' => null,
+            'maturity_code' => $lot->maturity_code,
+            'qty' => $this->ledger->decimal($qty, MetalTreasuryLedgerService::METAL_SCALE, 'qty'),
+            'customer_unit_price' => $saleUnitPrice,
+            'coverage_unit_cost' => $costUnitPrice,
+            'realized_pnl' => $realizedPnl,
+            'allocated_at' => now(),
+            'allocated_by_id' => Auth::id(),
+            'allocated_by_type' => $this->actorType(),
+            'idempotency_key' => $idempotencyKey,
+            'meta' => [
+                'kind' => 'traditional_exit',
+                'sale_unit_price' => $saleUnitPrice,
+                'user_unit_price' => $costUnitPrice,
+            ],
+        ]);
     }
 
     /**
@@ -722,7 +832,7 @@ class MetalOrderCoverageService
 
     private function assertLotCompatible(MetalOrder $order, MetalTreasuryLot $lot, array $allowed): void
     {
-        if ((int) $lot->metal_item_id !== (int) $order->metal_item_id) {
+        if (!$this->maturity->isSourceMetalItemAllowed($order, (int) $lot->metal_item_id)) {
             throw new LogicException('فلز Lot با سفارش سازگار نیست.');
         }
 

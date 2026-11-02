@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\api\v1\general;
 
 use App\Enums\UserStatus;
-use App\Events\UserRegistered;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\SignupRequest;
@@ -150,8 +149,6 @@ class AuthenticationController extends Controller
 
                     DB::commit();
 
-                    event(new UserRegistered($user));
-
                     return \response()->json([
                         'token' => $token->plainTextToken,
                         'user' => new UserInfoResource($user),
@@ -206,8 +203,6 @@ class AuthenticationController extends Controller
                         $token = $user->createToken($request->device_name??'Unknown device');
 
                         DB::commit();
-
-                        event(new UserRegistered($user));
 
                         return \response()->json([
                             'token' => $token->plainTextToken,

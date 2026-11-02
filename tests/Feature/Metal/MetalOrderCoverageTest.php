@@ -10,6 +10,7 @@ use App\Models\MetalOrderCoverageAllocation;
 use App\Models\MetalTrader;
 use App\Services\Metal\MetalOrderCoverageService;
 use App\Services\Metal\MetalTreasuryLedgerService;
+use InvalidArgumentException;
 beforeEach(function () {
     try {
         \Illuminate\Support\Facades\DB::connection()->getPdo();
@@ -18,7 +19,7 @@ beforeEach(function () {
     }
 });
 
-function coverageMetalItem(int $days = 0): MetalItem
+function coverageMetalItem(int $days = 0, ?int $settlementMetalItemId = null): MetalItem
 {
     $group = MetalItemGroup::query()->first()
         ?? MetalItemGroup::create(['title' => 'cov-group-' . uniqid(), 'sort_order' => 1]);
@@ -32,6 +33,7 @@ function coverageMetalItem(int $days = 0): MetalItem
         'is_visible' => true,
         'unit' => 'gram',
         'settlement_working_days' => $days,
+        'settlement_metal_item_id' => $settlementMetalItemId,
         'sort_order' => 1,
     ]);
 }
@@ -213,6 +215,101 @@ it('reverses allocation with release movement', function () {
 
     expect($allocation->fresh()->reversed_at)->not->toBeNull()
         ->and($order->fresh()->open_qty)->toBe('5.000');
+});
+
+it('covers T1 commitment order from settlement spot T0 inventory', function () {
+    $spot = coverageMetalItem(0);
+    $t1 = coverageMetalItem(1, $spot->id);
+    $ledger = app(MetalTreasuryLedgerService::class);
+    $coverage = app(MetalOrderCoverageService::class);
+
+    $ledger->createLot([
+        'metal_item_id' => $spot->id,
+        'maturity_code' => MetalMaturity::T0,
+        'source_type' => MetalTreasurySourceType::PHYSICAL_PURCHASE,
+        'initial_qty' => '10.000',
+        'unit_cost' => '5000000',
+    ], 'cov-spot-for-t1');
+
+    $order = coverageBuyOrder($t1, '0.500', '5100000');
+    $order = $coverage->allocateFromTreasury($order, '0.500', 'alloc-spot-cross');
+
+    expect($order->coverage_status)->toBe(MetalCoverageStatus::FULLY_COVERED)
+        ->and($order->open_qty)->toBe('0.000')
+        ->and(MetalOrderCoverageAllocation::where('metal_order_id', $order->id)->value('lot_id'))
+        ->not->toBeNull();
+});
+
+it('requires sale rate and records pnl when traditionally exiting user-sell lot', function () {
+    $item = coverageMetalItem(0);
+    $ledger = app(MetalTreasuryLedgerService::class);
+    $coverage = app(MetalOrderCoverageService::class);
+
+    $sellOrder = MetalOrder::create([
+        'tracking_code' => random_int(1000000000, 9999999999),
+        'metal_item_id' => $item->id,
+        'product_name' => $item->title,
+        'qty' => '10.000',
+        'unit' => 'gram',
+        'fee' => '5000000',
+        'amount' => 50000000,
+        'created_id' => 1,
+        'created_type' => 'metal_trader',
+        'status' => 'succeed',
+        'order_type' => 'sell',
+        'settlement_date' => now()->toDateString(),
+        'settlement_status' => 'settled',
+        'extra_data' => [],
+    ]);
+
+    $lot = $ledger->createLot([
+        'metal_item_id' => $item->id,
+        'maturity_code' => MetalMaturity::T0,
+        'source_type' => MetalTreasurySourceType::USER_WALLET_SELL,
+        'source_id' => $sellOrder->id,
+        'initial_qty' => '10.000',
+        'unit_cost' => '5000000',
+    ], 'user-sell-lot-eo');
+
+    expect(fn () => $coverage->externalOutFromPhysicalLot($lot->id, '4.000', 'eo-no-rate'))
+        ->toThrow(InvalidArgumentException::class);
+
+    $result = $coverage->externalOutFromPhysicalLot(
+        $lot->id,
+        '4.000',
+        'eo-with-rate',
+        'بازار سنتی',
+        '5200000',
+    );
+
+    expect($result['lot']->remaining_qty)->toBe('6.000')
+        ->and($result['realized_pnl'])->toBe('800000') // 4*(5200000-5000000)
+        ->and($result['allocation'])->not->toBeNull()
+        ->and($result['allocation']->source_type)->toBe(MetalTreasurySourceType::TRADITIONAL_EXIT)
+        ->and($result['allocation']->metal_order_id)->toBe($sellOrder->id)
+        ->and($result['allocation']->customer_unit_price)->toBe('5200000')
+        ->and($result['allocation']->coverage_unit_cost)->toBe('5000000');
+});
+
+it('keeps physical traditional exit without pnl allocation', function () {
+    $item = coverageMetalItem(0);
+    $ledger = app(MetalTreasuryLedgerService::class);
+    $coverage = app(MetalOrderCoverageService::class);
+
+    $lot = $ledger->createLot([
+        'metal_item_id' => $item->id,
+        'maturity_code' => MetalMaturity::T0,
+        'source_type' => MetalTreasurySourceType::PHYSICAL_PURCHASE,
+        'initial_qty' => '8.000',
+        'unit_cost' => '5100000',
+    ], 'phys-eo-lot');
+
+    $result = $coverage->externalOutFromPhysicalLot($lot->id, '3.000', 'phys-eo-1', 'خروج حضوری');
+
+    expect($result['lot']->remaining_qty)->toBe('5.000')
+        ->and($result['allocation'])->toBeNull()
+        ->and($result['realized_pnl'])->toBeNull()
+        ->and(MetalOrderCoverageAllocation::where('lot_id', $lot->id)->count())->toBe(0);
 });
 
 it('registers physical purchase without realized pnl until allocated', function () {

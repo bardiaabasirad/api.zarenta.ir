@@ -166,13 +166,14 @@ class MetalTreasuryLedgerService
     }
 
     /**
-     * تخصیص FIFO از Lotهای مجاز برای یک metal_item و سررسیدهای مجاز.
+     * تخصیص FIFO از Lotهای مجاز برای یک یا چند metal_item و سررسیدهای مجاز.
      *
+     * @param  int|list<int>  $metalItemId
      * @param  list<string>  $allowedMaturities  به ترتیب اولویت
      * @return list<array{lot: MetalTreasuryLot, qty: string}>
      */
     public function consumeFifo(
-        int $metalItemId,
+        int|array $metalItemId,
         array $allowedMaturities,
         string $neededQty,
         string $idempotencyPrefix,
@@ -181,13 +182,14 @@ class MetalTreasuryLedgerService
         ?string $actorType = null,
     ): array {
         $neededQty = $this->decimal($neededQty, self::METAL_SCALE, 'needed_qty');
+        $metalItemIds = array_values(array_unique(array_map('intval', (array) $metalItemId)));
 
-        if (bccomp($neededQty, '0', self::METAL_SCALE) <= 0) {
+        if ($metalItemIds === [] || bccomp($neededQty, '0', self::METAL_SCALE) <= 0) {
             return [];
         }
 
         return DB::transaction(function () use (
-            $metalItemId,
+            $metalItemIds,
             $allowedMaturities,
             $neededQty,
             $idempotencyPrefix,
@@ -205,7 +207,7 @@ class MetalTreasuryLedgerService
                 }
 
                 $lots = MetalTreasuryLot::query()
-                    ->where('metal_item_id', $metalItemId)
+                    ->whereIn('metal_item_id', $metalItemIds)
                     ->where('maturity_code', $maturity)
                     ->where('status', MetalTreasuryLotStatus::OPEN)
                     ->where('remaining_qty', '>', 0)
@@ -252,12 +254,20 @@ class MetalTreasuryLedgerService
         });
     }
 
-    public function availableQty(int $metalItemId, array $allowedMaturities): string
+    /**
+     * @param  int|list<int>  $metalItemId
+     */
+    public function availableQty(int|array $metalItemId, array $allowedMaturities): string
     {
         $total = '0';
+        $metalItemIds = array_values(array_unique(array_map('intval', (array) $metalItemId)));
+
+        if ($metalItemIds === [] || $allowedMaturities === []) {
+            return $total;
+        }
 
         $rows = MetalTreasuryLot::query()
-            ->where('metal_item_id', $metalItemId)
+            ->whereIn('metal_item_id', $metalItemIds)
             ->whereIn('maturity_code', $allowedMaturities)
             ->where('status', MetalTreasuryLotStatus::OPEN)
             ->where('remaining_qty', '>', 0)
@@ -271,7 +281,8 @@ class MetalTreasuryLedgerService
     }
 
     /**
-     * خروج سنتی از باقیمانده آزاد Lot (بخش تخصیص‌نیافته)؛ بدون ثبت P&L سیستمی.
+     * خروج سنتی از باقیمانده آزاد Lot (بخش تخصیص‌نیافته).
+     * به‌صورت پیش‌فرض بدون P&L؛ برای فروش کاربر می‌توان pnl_excluded را در meta خاموش کرد.
      */
     public function externalOut(
         MetalTreasuryLot $lot,
@@ -281,6 +292,8 @@ class MetalTreasuryLedgerService
         ?string $actorType = null,
         ?string $reason = 'traditional_market_sale',
         ?array $meta = null,
+        ?int $metalOrderId = null,
+        ?int $allocationId = null,
     ): MetalTreasuryMovement {
         if ($lot->status !== MetalTreasuryLotStatus::OPEN) {
             throw new LogicException('فقط Lotهای باز قابل خروج سنتی هستند.');
@@ -298,14 +311,16 @@ class MetalTreasuryLedgerService
             'movement_type' => MetalTreasuryMovementType::EXTERNAL_OUT,
             'qty' => $qty,
             'unit_cost' => $lot->unit_cost,
+            'metal_order_id' => $metalOrderId,
+            'allocation_id' => $allocationId,
             'actor_id' => $actorId,
             'actor_type' => $actorType,
             'idempotency_key' => $idempotencyKey,
             'reason' => $reason,
-            'meta' => array_merge($meta ?? [], [
+            'meta' => array_merge([
                 'pnl_excluded' => true,
                 'external_sale' => true,
-            ]),
+            ], $meta ?? []),
         ]);
     }
 

@@ -15,6 +15,7 @@ use App\Models\SelectedMetalPrice;
 use App\Models\Setting;
 use App\Models\WalletTransaction;
 use App\Services\MetalPriceService;
+use App\Services\MetalTraderNotificationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -31,6 +32,7 @@ class MetalPhysicalDeliveryService
     public function __construct(
         private readonly MetalTreasuryLedgerService $ledger,
         private readonly MetalPriceService $priceService,
+        private readonly MetalTraderNotificationService $traderNotificationService,
     ) {
     }
 
@@ -225,7 +227,7 @@ class MetalPhysicalDeliveryService
 
     public function reject(MetalPhysicalDeliveryRequest $request, ?string $reason = null): MetalPhysicalDeliveryRequest
     {
-        return DB::transaction(function () use ($request, $reason) {
+        $request = DB::transaction(function () use ($request, $reason) {
             $request = MetalPhysicalDeliveryRequest::query()
                 ->whereKey($request->id)
                 ->lockForUpdate()
@@ -257,11 +259,15 @@ class MetalPhysicalDeliveryService
 
             return $request->fresh(['metalItem', 'wallet', 'trader']);
         }, 3);
+
+        $this->notifyTraderStatusChange($request, MetalPhysicalDeliveryStatus::REJECTED, $reason);
+
+        return $request;
     }
 
     public function markReady(MetalPhysicalDeliveryRequest $request): MetalPhysicalDeliveryRequest
     {
-        return DB::transaction(function () use ($request) {
+        $request = DB::transaction(function () use ($request) {
             $request = MetalPhysicalDeliveryRequest::query()
                 ->whereKey($request->id)
                 ->lockForUpdate()
@@ -290,6 +296,10 @@ class MetalPhysicalDeliveryService
 
             return $request->fresh(['metalItem', 'wallet', 'trader']);
         }, 3);
+
+        $this->notifyTraderStatusChange($request, MetalPhysicalDeliveryStatus::READY_FOR_PICKUP);
+
+        return $request;
     }
 
     /**
@@ -306,7 +316,9 @@ class MetalPhysicalDeliveryService
             ? MetalTreasuryLedgerService::normalizeIdempotencyKey((string) $data['idempotency_key'])
             : null;
 
-        return DB::transaction(function () use ($request, $data, $source, $deliverKey) {
+        $alreadyDelivered = false;
+
+        $request = DB::transaction(function () use ($request, $data, $source, $deliverKey, &$alreadyDelivered) {
             $request = MetalPhysicalDeliveryRequest::query()
                 ->whereKey($request->id)
                 ->lockForUpdate()
@@ -315,6 +327,8 @@ class MetalPhysicalDeliveryService
             if ($deliverKey && $request->deliver_idempotency_key === $deliverKey
                 && $request->status === MetalPhysicalDeliveryStatus::DELIVERED
             ) {
+                $alreadyDelivered = true;
+
                 return $request->fresh(['metalItem', 'wallet', 'trader', 'treasuryLot']);
             }
 
@@ -416,6 +430,12 @@ class MetalPhysicalDeliveryService
 
             return $request->fresh(['metalItem', 'wallet', 'trader', 'treasuryLot']);
         }, 3);
+
+        if (!$alreadyDelivered) {
+            $this->notifyTraderStatusChange($request, MetalPhysicalDeliveryStatus::DELIVERED);
+        }
+
+        return $request;
     }
 
     private function cancel(
@@ -424,7 +444,7 @@ class MetalPhysicalDeliveryService
         string $actorType,
         string $reason,
     ): MetalPhysicalDeliveryRequest {
-        return DB::transaction(function () use ($request, $actorId, $actorType, $reason) {
+        $request = DB::transaction(function () use ($request, $actorId, $actorType, $reason) {
             $request = MetalPhysicalDeliveryRequest::query()
                 ->whereKey($request->id)
                 ->lockForUpdate()
@@ -457,6 +477,66 @@ class MetalPhysicalDeliveryService
 
             return $request->fresh(['metalItem', 'wallet', 'trader']);
         }, 3);
+
+        if ($actorType === 'admin') {
+            $this->notifyTraderStatusChange($request, MetalPhysicalDeliveryStatus::CANCELLED, $reason);
+        }
+
+        return $request;
+    }
+
+    private function notifyTraderStatusChange(
+        MetalPhysicalDeliveryRequest $request,
+        string $status,
+        ?string $reason = null
+    ): void {
+        $request->loadMissing('metalItem');
+
+        $metalTitle = $request->metalItem?->title ?: 'فلز';
+        $qty = rtrim(rtrim((string) $request->qty, '0'), '.') ?: (string) $request->qty;
+        $unit = match ($request->metalItem?->unit) {
+            'count' => 'عدد',
+            default => 'گرم',
+        };
+        $subject = $qty . ' ' . $unit . ' ' . $metalTitle;
+
+        [$title, $content, $type] = match ($status) {
+            MetalPhysicalDeliveryStatus::READY_FOR_PICKUP => [
+                'آماده تحویل فیزیکی',
+                'درخواست تحویل فیزیکی شما (' . $subject . ') آماده دریافت است.',
+                'physical_delivery_ready',
+            ],
+            MetalPhysicalDeliveryStatus::DELIVERED => [
+                'تحویل فیزیکی انجام شد',
+                'درخواست تحویل فیزیکی شما (' . $subject . ') تحویل داده شد.',
+                'physical_delivery_delivered',
+            ],
+            MetalPhysicalDeliveryStatus::REJECTED => [
+                'رد درخواست تحویل فیزیکی',
+                'درخواست تحویل فیزیکی شما (' . $subject . ') رد شد.'
+                    . ($reason ? ' علت: ' . $reason : ''),
+                'physical_delivery_rejected',
+            ],
+            MetalPhysicalDeliveryStatus::CANCELLED => [
+                'لغو درخواست تحویل فیزیکی',
+                'درخواست تحویل فیزیکی شما (' . $subject . ') توسط اپراتور لغو شد.'
+                    . ($reason ? ' علت: ' . $reason : ''),
+                'physical_delivery_cancelled',
+            ],
+            default => [null, null, null],
+        };
+
+        if (!$title) {
+            return;
+        }
+
+        $this->traderNotificationService->create([
+            'metal_trader_id' => $request->metal_trader_id,
+            'title' => $title,
+            'content' => $content,
+            'link' => '/physical-deliveries',
+            'type' => $type,
+        ]);
     }
 
     private function releaseMetalAndRefundFee(MetalPhysicalDeliveryRequest $request): void

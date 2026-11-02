@@ -111,6 +111,8 @@ Route::prefix('v1/traders')
         Route::get('orders', [OrderController::class, 'index']);
         Route::patch('settings/market-opening-notification', [\App\Http\Controllers\api\v1\metalTrader\SettingController::class, 'updateMarketOpeningNotification']);
         Route::patch('settings/aggregated-view-of-invoices', [\App\Http\Controllers\api\v1\metalTrader\SettingController::class, 'updateAggregatedViewOfInvoices']);
+        Route::post('profile/avatar', [ApiClientController::class, 'uploadAvatar']);
+        Route::delete('profile/avatar', [ApiClientController::class, 'deleteAvatar']);
         Route::get('orders/{tracking_code}', [OrderController::class, 'show']);
         Route::post('orders', [OrderController::class, 'store']);
         Route::get('rate', [RateController::class, 'getRate']);

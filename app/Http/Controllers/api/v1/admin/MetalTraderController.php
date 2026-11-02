@@ -39,7 +39,7 @@ class MetalTraderController extends Controller
 
         $metalTraders = MetalTrader::query();
 
-        $metalTraders = $metalTraders->select('id','dealing_group_id', 'name','phone','last_seen','status')
+        $metalTraders = $metalTraders->select('id','dealing_group_id', 'name','phone','avatar','last_seen','status')
             ->when(isset($id), function ($query) use ($id){
                 $query->where('id', 'like', '%' .$id . '%');
             })

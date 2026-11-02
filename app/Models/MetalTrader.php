@@ -25,6 +25,7 @@ class MetalTrader extends Authenticatable
         'kimi_account_id',
         'trade_leverage',
         'phone',
+        'avatar',
         'balance',
         'aggregated_view_of_invoices',
         'market_opening_notification',

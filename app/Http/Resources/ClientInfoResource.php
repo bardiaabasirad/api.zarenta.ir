@@ -23,6 +23,7 @@ class ClientInfoResource extends JsonResource
             'kimi_account_id' => $this->kimi_account_id,
             'api_key' => $this->api_key,
             'phone' => $this->phone,
+            'avatar' => $this->avatar,
             'balance' => $this->balance,
             'group' => $encryptedDealingGroup,
             'inquiry_access' => $this->inquiry_access,

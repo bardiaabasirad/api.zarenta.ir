@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\api\v1\metalTrader;
 
+use App\Http\Requests\MetalTraderAvatarUploadRequest;
 use App\Http\Resources\ClientInfoResource;
 use App\Models\DealingGroup;
 use App\Models\MetalTrader;
@@ -10,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class ApiClientController extends Controller
 {
@@ -17,7 +19,7 @@ class ApiClientController extends Controller
     {
         $metalTrader = MetalTrader::select(
                 'id','name','api_key','dealing_group_id','kimi_account_id',
-                'phone','balance','market_opening_notification','aggregated_view_of_invoices'
+                'phone','avatar','balance','market_opening_notification','aggregated_view_of_invoices'
             )
             ->with('dealingGroup.metalItemConfigs')
             ->withHasPass()
@@ -39,6 +41,48 @@ class ApiClientController extends Controller
 
         return response()->json(new ClientInfoResource($metalTrader));
     }
+
+    public function uploadAvatar(MetalTraderAvatarUploadRequest $request): JsonResponse
+    {
+        /** @var MetalTrader $metalTrader */
+        $metalTrader = Auth::guard('metal-trader-api')->user();
+
+        $previousAvatar = $metalTrader->avatar;
+        $path = Storage::put('metal-traders', $request->file('image'));
+
+        $metalTrader->update(['avatar' => $path]);
+
+        if ($previousAvatar && Storage::exists($previousAvatar)) {
+            Storage::delete($previousAvatar);
+        }
+
+        return response()->json([
+            'avatar' => $path,
+            'message' => 'تصویر پروفایل با موفقیت به‌روزرسانی شد',
+        ]);
+    }
+
+    public function deleteAvatar(): JsonResponse
+    {
+        /** @var MetalTrader $metalTrader */
+        $metalTrader = Auth::guard('metal-trader-api')->user();
+
+        $previousAvatar = $metalTrader->avatar;
+
+        if ($previousAvatar) {
+            $metalTrader->update(['avatar' => null]);
+
+            if (Storage::exists($previousAvatar)) {
+                Storage::delete($previousAvatar);
+            }
+        }
+
+        return response()->json([
+            'avatar' => null,
+            'message' => 'تصویر پروفایل حذف شد',
+        ]);
+    }
+
     /**
      * Generate and store new API key for a client
      *

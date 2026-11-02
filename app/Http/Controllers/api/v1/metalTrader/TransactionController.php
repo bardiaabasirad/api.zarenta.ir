@@ -18,7 +18,7 @@ class TransactionController extends Controller
         $endDate   = Carbon::parse(request()->input('end', now()))->endOfDay();
 
         $perPage = (int) request()->input('count', request()->input('pageSize', config('app.per_page', 50)));
-        $perPage = max(1, min($perPage, 20));
+        $perPage = max(1, min($perPage, 100));
 
         $walletIds = MetalTraderWallet::where('metal_trader_id', $metalTrader->id)->pluck('id');
 

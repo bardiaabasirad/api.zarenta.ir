@@ -36,6 +36,11 @@ class MetalTraderController extends Controller
         $phone = request()->input('phone');
         $status = request()->input('status');
         $dealingGroupId = request()->input('dealing_group_id');
+        $lastSeen = request()->input('last_seen');
+        $onlineIds = array_values(array_filter(
+            array_map('intval', (array) request()->input('online_ids', [])),
+            fn (int $value) => $value > 0
+        ));
 
         $metalTraders = MetalTrader::query();
 
@@ -54,6 +59,44 @@ class MetalTraderController extends Controller
             })
             ->when(isset($phone), function ($query) use ($phone){
                 $query->where('phone', 'like', '%' . $phone . '%');
+            })
+            ->when($lastSeen === 'online', function ($query) use ($onlineIds) {
+                if ($onlineIds === []) {
+                    $query->whereRaw('0 = 1');
+                    return;
+                }
+
+                $query->whereIn('id', $onlineIds);
+            })
+            ->when($lastSeen === '3h', function ($query) {
+                $query->where('last_seen', '>=', now()->subHours(3));
+            })
+            ->when($lastSeen === '6h', function ($query) {
+                $query->where('last_seen', '>=', now()->subHours(6));
+            })
+            ->when($lastSeen === '12h', function ($query) {
+                $query->where('last_seen', '>=', now()->subHours(12));
+            })
+            ->when($lastSeen === '1d', function ($query) {
+                $query->where('last_seen', '>=', now()->subDay());
+            })
+            ->when($lastSeen === '2d', function ($query) {
+                $query->where('last_seen', '>=', now()->subDays(2));
+            })
+            ->when($lastSeen === '3d', function ($query) {
+                $query->where('last_seen', '>=', now()->subDays(3));
+            })
+            ->when($lastSeen === '1w', function ($query) {
+                $query->where('last_seen', '>=', now()->subWeek());
+            })
+            ->when($lastSeen === '1m', function ($query) {
+                $query->where('last_seen', '>=', now()->subMonth());
+            })
+            ->when($lastSeen === 'over_1m', function ($query) {
+                $query->where(function ($q) {
+                    $q->where('last_seen', '<', now()->subMonth())
+                        ->orWhereNull('last_seen');
+                });
             })
             ->orderBy($sortBy??'created_at', $dir??'desc')
             ->paginate($count??config('app.per_page'));

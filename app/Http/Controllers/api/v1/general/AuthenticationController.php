@@ -287,7 +287,16 @@ class AuthenticationController extends Controller
 
     public function logout()
     {
-        auth('user-api')->user()->currentAccessToken()->delete();
+        $user = auth('user-api')->user();
+
+        if ($user) {
+            $user->timestamps = false;
+            $user->last_seen = now();
+            $user->save();
+            $user->timestamps = true;
+            $user->currentAccessToken()->delete();
+        }
+
         return response()->json('شما با موفقیت خارج شدید');
     }
 }

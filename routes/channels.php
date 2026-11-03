@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Admin;
 use App\Models\MetalTrader;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
@@ -39,19 +40,32 @@ Broadcast::channel('metal-trader-{metalTraderId}', function ($metalTrader, $meta
     return (int) $metalTrader->id === (int) $metalTraderId;
 }, ['guards' => ['metal-trader-api']]);
 
-// Presence Channels for clients
+// Presence Channels for metal traders + admins (admin UI watches trader online status)
 Broadcast::channel('online-clients', function ($user) {
-    if ($user) {
-        // ثبت کاربر به عنوان آنلاین
+    if ($user instanceof MetalTrader) {
+        // last_seen فقط هنگام قطع حضور (leave) ثبت می‌شود، نه هنگام join یا درخواست API
         return [
-            'id' => $user->id,
+            // id باید بین گاردها یکتا باشد تا ادمین و تریدر با id یکسان تداخل نکنند
+            'id' => 'metal_trader-'.$user->id,
+            'entity_id' => $user->id,
             'type' => (new MetalTrader())->getMorphClass(),
             'name' => $user->name ?? 'Unknown',
             'connected_at' => now()->toIso8601String(),
         ];
     }
+
+    if ($user instanceof Admin) {
+        return [
+            'id' => 'admin-'.$user->id,
+            'entity_id' => $user->id,
+            'type' => (new Admin())->getMorphClass(),
+            'name' => $user->name ?? 'Admin',
+            'connected_at' => now()->toIso8601String(),
+        ];
+    }
+
     return false;
-}, ['guards' => ['metal-trader-api']]);
+}, ['guards' => ['metal-trader-api', 'admin-api']]);
 
 /*
 |--------------------------------------------------------------------------
@@ -83,19 +97,31 @@ Broadcast::channel('user-rates-{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId;
 }, ['guards' => ['user-api']]);
 
-// Presence Channels for users
+// Presence Channels for shop users + admins (admin UI watches user online status)
 Broadcast::channel('online-users', function ($user) {
-    if ($user) {
-        // ثبت کاربر به عنوان آنلاین
+    if ($user instanceof User) {
+        // last_seen فقط هنگام قطع حضور (leave) ثبت می‌شود، نه هنگام join یا درخواست API
         return [
-            'id' => $user->id,
+            'id' => 'user-'.$user->id,
+            'entity_id' => $user->id,
             'type' => (new User())->getMorphClass(),
-            'name' => $user->name ?? 'Unknown',
+            'name' => $user->full_name ?? $user->name ?? 'Unknown',
             'connected_at' => now()->toIso8601String(),
         ];
     }
+
+    if ($user instanceof Admin) {
+        return [
+            'id' => 'admin-'.$user->id,
+            'entity_id' => $user->id,
+            'type' => (new Admin())->getMorphClass(),
+            'name' => $user->name ?? 'Admin',
+            'connected_at' => now()->toIso8601String(),
+        ];
+    }
+
     return false;
-}, ['guards' => ['user-api']]);
+}, ['guards' => ['user-api', 'admin-api']]);
 
 /*
 |--------------------------------------------------------------------------

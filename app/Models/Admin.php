@@ -18,6 +18,14 @@ class Admin extends Authenticatable implements LaratrustUser
     protected $guarded = ['id'];
     protected $hidden = ['password'];
 
+    /**
+     * Unique presence member id across guards (admin-1 vs metal_trader-1).
+     */
+    public function getAuthIdentifierForBroadcasting(): string
+    {
+        return 'admin-'.$this->getAuthIdentifier();
+    }
+
     public function orderLogs()
     {
         return $this->morphMany(OrderLog::class, 'loggable');

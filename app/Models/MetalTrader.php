@@ -60,6 +60,15 @@ class MetalTrader extends Authenticatable
     }
 
     /**
+     * Unique presence member id across guards (metal_trader-1 vs admin-1).
+     * Without this, Reverb keys both as user_id "1" and suppresses member_added.
+     */
+    public function getAuthIdentifierForBroadcasting(): string
+    {
+        return 'metal_trader-'.$this->getAuthIdentifier();
+    }
+
+    /**
      * Generate a unique API key
      *
      * @return string

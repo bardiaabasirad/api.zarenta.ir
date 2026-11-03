@@ -40,7 +40,16 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'products_settings' => 'array',
+        'last_seen' => 'datetime',
     ];
+
+    /**
+     * Unique presence member id across guards (user-1 vs admin-1).
+     */
+    public function getAuthIdentifierForBroadcasting(): string
+    {
+        return 'user-'.$this->getAuthIdentifier();
+    }
 
     public function checkedNationalCodes()
     {

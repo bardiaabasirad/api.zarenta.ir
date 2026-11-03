@@ -10,6 +10,7 @@ use App\Http\Controllers\api\v1\general\LandingPageController;
 use App\Http\Controllers\api\v1\general\MarketPriceController;
 use App\Http\Controllers\api\v1\general\OrderController;
 use App\Http\Controllers\api\v1\general\PersianCoinController;
+use App\Http\Controllers\api\v1\general\PresenceController;
 use App\Http\Controllers\api\v1\general\ProductController;
 use App\Http\Controllers\api\v1\general\SearchController;
 use App\Http\Controllers\api\v1\general\SettingController;
@@ -36,6 +37,10 @@ Route::prefix('v1')->middleware(['user.activity'])->group(function () {
         Route::get('info', [UserController::class, 'info'])
             ->middleware('auth:user-api');
     });
+
+    // Presence leave must work even if account status changes (pagehide / disconnect)
+    Route::post('presence/leave', [PresenceController::class, 'leave'])
+        ->middleware('auth:user-api');
 
     Route::middleware(['auth:user-api'])->group(function () {
 

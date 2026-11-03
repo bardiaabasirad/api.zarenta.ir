@@ -11,6 +11,7 @@ use App\Http\Controllers\api\v1\metalTrader\MetalTraderLeadController;
 use App\Http\Controllers\api\v1\metalTrader\MetalPhysicalDeliveryController;
 use App\Http\Controllers\api\v1\metalTrader\NotificationController as TraderNotificationController;
 use App\Http\Controllers\api\v1\metalTrader\OrderController;
+use App\Http\Controllers\api\v1\metalTrader\PresenceController;
 use App\Http\Controllers\api\v1\metalTrader\RateController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
@@ -43,6 +44,10 @@ Route::prefix('v1/traders')
         Route::get('info', [ApiClientController::class, 'info'])
             ->middleware('auth:metal-trader-api');
     });
+
+    // Presence leave must work even if trader is inactive (pagehide / disconnect)
+    Route::post('presence/leave', [PresenceController::class, 'leave'])
+        ->middleware('auth:metal-trader-api');
 
     Route::post('change-password', [AuthenticationController::class, 'changePasswordByProfile'])
         ->middleware([

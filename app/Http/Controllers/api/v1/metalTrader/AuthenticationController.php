@@ -304,7 +304,16 @@ class AuthenticationController extends Controller
 
     public function logout()
     {
-        auth('metal-trader-api')->user()->currentAccessToken()->delete();
+        $client = auth('metal-trader-api')->user();
+
+        if ($client) {
+            $client->timestamps = false;
+            $client->last_seen = now();
+            $client->save();
+            $client->timestamps = true;
+            $client->currentAccessToken()->delete();
+        }
+
         return response()->json('با موفقیت خارج شدید');
     }
 }

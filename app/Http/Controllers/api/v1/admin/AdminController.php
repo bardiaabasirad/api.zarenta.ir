@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAdminRequest;
 use App\Http\Requests\UpdateAdminRequest;
 use App\Models\Admin;
+use App\Models\Permission;
 use App\Models\Role;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -22,10 +23,22 @@ class AdminController extends Controller
         $sortBy = request()->input('sortBy');
         $dir = request()->input('dir');
         $count = request()->input('count');
+        $full_name = request()->input('full_name');
+        $phone = request()->input('phone');
+        $status = request()->input('status');
 
         $admins = $admins->with('roles')
-            ->orderBy($sortBy??'created_at', $dir??'asc')
-            ->paginate($count??config('app.per_page'));
+            ->when($full_name, function ($query) use ($full_name) {
+                $query->where('full_name', 'like', "%{$full_name}%");
+            })
+            ->when($phone, function ($query) use ($phone) {
+                $query->where('phone', 'like', "%{$phone}%");
+            })
+            ->when($status && $status !== 'all', function ($query) use ($status) {
+                $query->where('status', $status);
+            })
+            ->orderBy($sortBy ?? 'created_at', $dir ?? 'asc')
+            ->paginate($count ?? config('app.per_page'));
 
         return response()->json($admins);
     }
@@ -46,17 +59,17 @@ class AdminController extends Controller
     public function show(Admin $staff)
     {
         $staff->load('roles', 'permissions');
-        $roles = Role::all();
 
         return response()->json([
             'staff' => $staff,
-            'roles' => $roles,
+            'roles' => Role::all(),
+            'permissions' => Permission::all(),
         ]);
     }
 
     public function store(StoreAdminRequest $request)
     {
-        $attributes = Arr::except($request->validated(), 'password');
+        $attributes = Arr::except($request->validated(), ['password', 'roles', 'permissions']);
 
         if ($request->filled('password')) {
             $attributes['password'] = bcrypt($request->input('password'));
@@ -64,16 +77,15 @@ class AdminController extends Controller
 
         $staff = Admin::create($attributes);
 
-        if($request->roles){
-            $staff->roles()->attach($request->roles);
-        }
+        $staff->syncRoles($request->input('roles', []));
+        $staff->syncPermissions($request->input('permissions', []));
 
-        return \response()->json(['message' => trans('messages.a_new_operator_has_been_created'),], 201);
+        return response()->json(['message' => trans('messages.a_new_operator_has_been_created')], 201);
     }
 
     public function update(UpdateAdminRequest $request, Admin $staff)
     {
-        $attributes = Arr::except($request->validated(), ['password','image']);
+        $attributes = Arr::except($request->validated(), ['password', 'image', 'roles', 'permissions']);
 
         if ($request->filled('password')) {
             $attributes['password'] = bcrypt($request->input('password'));
@@ -85,14 +97,20 @@ class AdminController extends Controller
             $attributes['avatar'] = $path;
         }
 
-        if($request->roles){
-            $staff->roles()->sync($request->roles);
+        if (!empty($attributes)) {
+            $staff->update($attributes);
         }
 
-        $staff->update($attributes);
+        if ($request->has('roles')) {
+            $staff->syncRoles($request->input('roles', []));
+        }
+
+        if ($request->has('permissions')) {
+            $staff->syncPermissions($request->input('permissions', []));
+        }
 
         return response()->json([
-            'staff' => $staff->load('roles'),
+            'staff' => $staff->load('roles', 'permissions'),
             'message' => trans('messages.the_operator_has_been_successfully_updated'),
         ]);
     }

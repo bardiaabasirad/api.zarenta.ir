@@ -11,11 +11,14 @@ class StoreAdminRequest extends FormRequest
     {
         return [
             'full_name' => 'required|string|max:255',
-            'national_code' => ['required','numeric','digits:10'],
-            'phone' => ['required','regex:/^(\+989|989|09|9)\d{9}$/','unique:users'],
+            'national_code' => ['required', 'numeric', 'digits:10', 'unique:admins,national_code'],
+            'phone' => ['required', 'regex:/^(\+989|989|09|9)\d{9}$/', 'unique:admins,phone'],
             'password' => 'required|string|min:8|max:255|confirmed',
-            'status' => ['required','in:' . implode(',', UserStatus::classConstants())],
+            'status' => ['required', 'in:' . implode(',', UserStatus::classConstants())],
             'roles' => 'sometimes|array',
+            'roles.*' => 'integer|exists:roles,id',
+            'permissions' => 'sometimes|array',
+            'permissions.*' => 'integer|exists:permissions,id',
         ];
     }
 
@@ -25,6 +28,7 @@ class StoreAdminRequest extends FormRequest
             'national_code.required' => 'کد ملی ضروری است',
             'national_code.numeric' => 'کد ملی وارد شده معتبر نیست',
             'national_code.digits' => 'کد ملی وارد شده معتبر نیست',
+            'national_code.unique' => 'کد ملی وارد شده تکراری است',
             'phone.required' => 'فیلد تلفن ضروری است',
             'phone.regex' => 'فرمت تلفن وارد شده نادرست است',
             'phone.unique' => 'تلفن وارد شده تکراری است',
@@ -37,13 +41,15 @@ class StoreAdminRequest extends FormRequest
             'full_name.max' => 'حداکثر طول نام و نام خانوادگی ۲۵۵ کاراکتر می‌باشد',
             'status.required' => 'فیلد وضعیت ضروری است',
             'status.in' => 'مقدار فیلد وضعیت نادرست است',
-            'roles.array' => 'مجوزها باید از نوع آرایه باشد',
+            'roles.array' => 'نقش‌ها باید از نوع آرایه باشد',
+            'roles.*.exists' => 'یکی از نقش‌های انتخاب‌شده معتبر نیست',
+            'permissions.array' => 'مجوزها باید از نوع آرایه باشد',
+            'permissions.*.exists' => 'یکی از مجوزهای انتخاب‌شده معتبر نیست',
         ];
     }
 
     protected function prepareForValidation()
     {
-        // Modify the 'phone' value if it's present in the request
         if ($this->has('phone')) {
             $this->merge(['phone' => getPhone($this->input('phone'))]);
         }

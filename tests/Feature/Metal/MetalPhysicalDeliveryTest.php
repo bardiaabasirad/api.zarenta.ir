@@ -222,6 +222,7 @@ it('delivers from treasury physical lot and recognizes fee without second fiat t
     $req = $svc->deliver($req->fresh(), [
         'source' => MetalPhysicalDeliverySource::TREASURY_PHYSICAL,
         'lot_id' => $lot->id,
+        'delivered_qty' => '5.000',
         'idempotency_key' => $deliverKey,
     ]);
 
@@ -230,6 +231,8 @@ it('delivers from treasury physical lot and recognizes fee without second fiat t
     $fiat->refresh();
 
     expect($req->status)->toBe(MetalPhysicalDeliveryStatus::DELIVERED)
+        ->and($req->delivered_qty)->toBe('5.000')
+        ->and($req->fee_adjustment_amount)->toBe('0')
         ->and($req->fee_recognized_at)->not->toBeNull()
         ->and($req->delivery_source)->toBe(MetalPhysicalDeliverySource::TREASURY_PHYSICAL)
         ->and($lot->remaining_qty)->toBe('15.000')
@@ -241,6 +244,7 @@ it('delivers from treasury physical lot and recognizes fee without second fiat t
     $again = $svc->deliver($req->fresh(), [
         'source' => MetalPhysicalDeliverySource::TREASURY_PHYSICAL,
         'lot_id' => $lot->id,
+        'delivered_qty' => '5.000',
         'idempotency_key' => $deliverKey,
     ]);
     expect($again->id)->toBe($req->id);
@@ -269,6 +273,7 @@ it('keeps request status when treasury free qty is insufficient', function () {
     expect(fn () => $svc->deliver($req, [
         'source' => MetalPhysicalDeliverySource::TREASURY_PHYSICAL,
         'lot_id' => $lot->id,
+        'delivered_qty' => '5.000',
     ]))->toThrow(LogicException::class);
 
     $req->refresh();
@@ -298,6 +303,7 @@ it('delivers from shop unregistered with audit only and no lot movement', functi
     $req = $svc->create($trader, $item->id, '3.000', 'pdr-shop-' . uniqid());
     $req = $svc->deliver($req, [
         'source' => MetalPhysicalDeliverySource::SHOP_UNREGISTERED,
+        'delivered_qty' => '3.000',
         'notes' => 'تحویل از ویترین',
     ]);
 
@@ -309,6 +315,139 @@ it('delivers from shop unregistered with audit only and no lot movement', functi
         ->and($lot->remaining_qty)->toBe('50.000')
         ->and($lot->status)->toBe(MetalTreasuryLotStatus::OPEN)
         ->and($req->meta['shop_unregistered_audit'] ?? false)->toBeTrue();
+});
+
+it('refunds shortfall metal and proportional fee when delivered under requested gram qty', function () {
+    $item = pdrSpotItem();
+    pdrSeedPrice($item, '1000000');
+    $trader = pdrTrader();
+    pdrMetalWallet($trader, $item, '10.000');
+    $fiat = pdrFiatWallet($trader, '100000');
+    $svc = app(MetalPhysicalDeliveryService::class);
+
+    // درخواست ۵ گرم → کارمزد ۲۵۰۰۰؛ تحویل ۴.۹۵۰ → استرداد ۰.۰۵×۱۰۰۰۰۰۰×۰.۵٪ = ۲۵۰
+    $req = $svc->create($trader, $item->id, '5.000', 'pdr-under-' . uniqid());
+    $req = $svc->deliver($req, [
+        'source' => MetalPhysicalDeliverySource::SHOP_UNREGISTERED,
+        'delivered_qty' => '4.950',
+    ]);
+
+    $metal = MetalTraderWallet::query()->whereKey($req->metal_trader_wallet_id)->first();
+    $fiat->refresh();
+    $partialRefund = WalletTransaction::query()
+        ->where('metal_physical_delivery_request_id', $req->id)
+        ->where('reference_number', 'PDR:' . $req->id . ':fee-partial-refund')
+        ->first();
+
+    expect($req->status)->toBe(MetalPhysicalDeliveryStatus::DELIVERED)
+        ->and($req->delivered_qty)->toBe('4.950')
+        ->and($req->fee_adjustment_amount)->toBe('-250')
+        ->and($metal->blocked_balance)->toBe('0.000')
+        ->and($metal->available_balance)->toBe('5.050') // 10 - 5 + 0.05
+        ->and(bccomp((string) $fiat->available_balance, '75250', 0))->toBe(0) // 100000 - 25000 + 250
+        ->and($partialRefund)->not->toBeNull()
+        ->and(bccomp((string) $partialRefund->amount, '250', 0))->toBe(0)
+        ->and(WalletTransaction::where('metal_physical_delivery_request_id', $req->id)
+            ->where('reference_number', 'PDR:' . $req->id . ':metal-partial-unblock')->exists())->toBeTrue();
+});
+
+it('debits overage metal and extra fee when delivered over requested gram qty', function () {
+    $item = pdrSpotItem();
+    pdrSeedPrice($item, '1000000');
+    $trader = pdrTrader();
+    pdrMetalWallet($trader, $item, '10.000');
+    $fiat = pdrFiatWallet($trader, '100000');
+    $svc = app(MetalPhysicalDeliveryService::class);
+
+    // درخواست ۵ گرم؛ تحویل ۵.۰۵ → کسر ۰.۰۵ فلز آزاد + کارمزد ۲۵۰ اضافه
+    $req = $svc->create($trader, $item->id, '5.000', 'pdr-over-' . uniqid());
+    $req = $svc->deliver($req, [
+        'source' => MetalPhysicalDeliverySource::SHOP_UNREGISTERED,
+        'delivered_qty' => '5.050',
+    ]);
+
+    $metal = MetalTraderWallet::query()->whereKey($req->metal_trader_wallet_id)->first();
+    $fiat->refresh();
+    $overFee = WalletTransaction::query()
+        ->where('metal_physical_delivery_request_id', $req->id)
+        ->where('reference_number', 'PDR:' . $req->id . ':fee-overcharge')
+        ->first();
+
+    expect($req->status)->toBe(MetalPhysicalDeliveryStatus::DELIVERED)
+        ->and($req->delivered_qty)->toBe('5.050')
+        ->and($req->fee_adjustment_amount)->toBe('250')
+        ->and($metal->blocked_balance)->toBe('0.000')
+        ->and($metal->available_balance)->toBe('4.950') // 10 - 5 - 0.05
+        ->and(bccomp((string) $fiat->available_balance, '74750', 0))->toBe(0) // 100000 - 25000 - 250
+        ->and($overFee)->not->toBeNull()
+        ->and(bccomp((string) $overFee->amount, '250', 0))->toBe(0)
+        ->and(WalletTransaction::where('metal_physical_delivery_request_id', $req->id)
+            ->where('reference_number', 'PDR:' . $req->id . ':metal-over-consume')->exists())->toBeTrue();
+});
+
+it('rejects over-delivery when available metal is insufficient for the overage', function () {
+    $item = pdrSpotItem();
+    pdrSeedPrice($item, '1000000');
+    $trader = pdrTrader();
+    // فقط ۵ گرم آزاد → بعد از رزرو ۵، available=0 و نمی‌توان ۵.۰۵ تحویل داد
+    pdrMetalWallet($trader, $item, '5.000');
+    pdrFiatWallet($trader, '100000');
+    $svc = app(MetalPhysicalDeliveryService::class);
+
+    $req = $svc->create($trader, $item->id, '5.000', 'pdr-over-fail-' . uniqid());
+    expect(fn () => $svc->deliver($req, [
+        'source' => MetalPhysicalDeliverySource::SHOP_UNREGISTERED,
+        'delivered_qty' => '5.050',
+    ]))->toThrow(LogicException::class);
+
+    $req->refresh();
+    expect($req->status)->toBe(MetalPhysicalDeliveryStatus::PENDING)
+        ->and($req->delivered_qty)->toBeNull();
+});
+
+it('requires delivered_qty for gram products and forbids variance on count products', function () {
+    $item = pdrSpotItem();
+    pdrSeedPrice($item, '1000000');
+    $trader = pdrTrader();
+    pdrMetalWallet($trader, $item, '10.000');
+    pdrFiatWallet($trader, '100000');
+    $svc = app(MetalPhysicalDeliveryService::class);
+
+    $req = $svc->create($trader, $item->id, '2.000', 'pdr-req-qty-' . uniqid());
+    expect(fn () => $svc->deliver($req, [
+        'source' => MetalPhysicalDeliverySource::SHOP_UNREGISTERED,
+    ]))->toThrow(InvalidArgumentException::class);
+
+    $countGroup = \App\Models\MetalItemGroup::query()->first()
+        ?? \App\Models\MetalItemGroup::create(['title' => 'pdr-count-g-' . uniqid(), 'sort_order' => 1]);
+    $countItem = MetalItem::withoutGlobalScope('visible')->create([
+        'metal_item_group_id' => $countGroup->id,
+        'title' => 'pdr-count-' . uniqid(),
+        'is_spot' => true,
+        'is_buy_active' => true,
+        'is_sell_active' => true,
+        'is_visible' => true,
+        'unit' => 'count',
+        'pricing_unit_id' => 'count',
+        'settlement_working_days' => 0,
+        'sort_order' => 1,
+    ]);
+    pdrSeedPrice($countItem, '500000');
+    pdrMetalWallet($trader, $countItem, '10.000');
+
+    $countReq = $svc->create($trader, $countItem->id, '2.000', 'pdr-count-' . uniqid());
+    expect(fn () => $svc->deliver($countReq, [
+        'source' => MetalPhysicalDeliverySource::SHOP_UNREGISTERED,
+        'delivered_qty' => '1.000',
+    ]))->toThrow(InvalidArgumentException::class);
+
+    $countReq = $svc->deliver($countReq->fresh(), [
+        'source' => MetalPhysicalDeliverySource::SHOP_UNREGISTERED,
+        'delivered_qty' => '2.000',
+    ]);
+    expect($countReq->status)->toBe(MetalPhysicalDeliveryStatus::DELIVERED)
+        ->and($countReq->delivered_qty)->toBe('2.000')
+        ->and($countReq->fee_adjustment_amount)->toBe('0');
 });
 
 it('is idempotent on create key and snapshots fee rate for new requests only', function () {

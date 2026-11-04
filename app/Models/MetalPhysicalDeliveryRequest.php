@@ -13,9 +13,11 @@ class MetalPhysicalDeliveryRequest extends Model
 
     protected $casts = [
         'qty' => 'string',
+        'delivered_qty' => 'string',
         'fee_rate_percent' => 'string',
         'fee_unit_price' => 'string',
         'fee_amount' => 'string',
+        'fee_adjustment_amount' => 'string',
         'meta' => 'array',
         'fee_recognized_at' => 'datetime',
         'fee_refunded_at' => 'datetime',

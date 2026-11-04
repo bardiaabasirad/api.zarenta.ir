@@ -71,11 +71,13 @@ class MetalPhysicalDeliveryController extends Controller
             || $delivery->status === MetalPhysicalDeliveryStatus::PENDING
             || $delivery->status === MetalPhysicalDeliveryStatus::READY_FOR_PICKUP
         ) {
+            // Lotهای با موجودی آزاد؛ اعتبارسنجی وزن واقعی در deliver انجام می‌شود
+            // (ممکن است وزن تحویلی اندکی بیشتر از درخواست باشد)
             $compatibleLots = MetalTreasuryLot::query()
                 ->where('metal_item_id', $delivery->metal_item_id)
                 ->where('source_type', MetalTreasurySourceType::PHYSICAL_PURCHASE)
                 ->where('status', MetalTreasuryLotStatus::OPEN)
-                ->where('remaining_qty', '>=', $delivery->qty)
+                ->where('remaining_qty', '>', 0)
                 ->orderBy('purchased_at')
                 ->get(['id', 'remaining_qty', 'initial_qty', 'unit_cost', 'purchased_at', 'maturity_code', 'source_type']);
         }
@@ -150,6 +152,7 @@ class MetalPhysicalDeliveryController extends Controller
         $data = $request->validate([
             'source' => 'required|in:' . implode(',', MetalPhysicalDeliverySource::all()),
             'lot_id' => 'nullable|integer|exists:metal_treasury_lots,id',
+            'delivered_qty' => 'nullable|numeric|gt:0',
             'notes' => 'nullable|string|max:2000',
             'idempotency_key' => 'nullable|string|max:128',
         ]);

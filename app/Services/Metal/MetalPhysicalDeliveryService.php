@@ -305,7 +305,7 @@ class MetalPhysicalDeliveryService
     }
 
     /**
-     * @param  array{source:string,lot_id?:int|null,notes?:string|null,idempotency_key?:string|null}  $data
+     * @param  array{source:string,lot_id?:int|null,delivered_qty?:string|null,notes?:string|null,idempotency_key?:string|null}  $data
      */
     public function deliver(MetalPhysicalDeliveryRequest $request, array $data): MetalPhysicalDeliveryRequest
     {
@@ -343,6 +343,12 @@ class MetalPhysicalDeliveryService
                 throw new LogicException('گذار به تحویل‌شده از وضعیت فعلی مجاز نیست.');
             }
 
+            $requestedQty = $this->decimal((string) $request->qty, self::METAL_SCALE, 'qty');
+            $unit = (string) ($request->unit ?? 'gram');
+            $deliveredQty = $this->resolveDeliveredQty($data, $requestedQty, $unit);
+            $qtyDelta = bcsub($deliveredQty, $requestedQty, self::METAL_SCALE);
+            $feeAdjustment = $this->feeAdjustmentForDelta($request, $qtyDelta);
+
             $movementId = null;
             $lotId = null;
 
@@ -371,12 +377,16 @@ class MetalPhysicalDeliveryService
                 try {
                     $movement = $this->ledger->physicalDeliveryOut(
                         lot: $lot,
-                        qty: (string) $request->qty,
+                        qty: $deliveredQty,
                         idempotencyKey: $outKey,
                         physicalDeliveryRequestId: (int) $request->id,
                         actorId: Auth::id(),
                         actorType: 'admin',
-                        meta: ['notes' => $data['notes'] ?? null],
+                        meta: [
+                            'notes' => $data['notes'] ?? null,
+                            'requested_qty' => $requestedQty,
+                            'delivered_qty' => $deliveredQty,
+                        ],
                     );
                 } catch (LogicException $e) {
                     // وزن کافی نیست → درخواست در وضعیت قبلی می‌ماند (تراکنش rollback)
@@ -396,10 +406,14 @@ class MetalPhysicalDeliveryService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            $this->consumeReservedMetal($wallet, $request);
+            $this->settleMetalOnDeliver($wallet, $request, $requestedQty, $deliveredQty);
+            $feeAdjTx = $this->applyFeeAdjustment($request, $feeAdjustment);
 
             $request->forceFill([
                 'status' => MetalPhysicalDeliveryStatus::DELIVERED,
+                'delivered_qty' => $deliveredQty,
+                'fee_adjustment_amount' => $feeAdjustment,
+                'fee_adjustment_wallet_tx_id' => $feeAdjTx?->id,
                 'delivery_source' => $source,
                 'treasury_lot_id' => $lotId,
                 'treasury_movement_id' => $movementId,
@@ -412,6 +426,15 @@ class MetalPhysicalDeliveryService
                 'meta' => array_merge($request->meta ?? [], [
                     'delivery_source' => $source,
                     'shop_unregistered_audit' => $source === MetalPhysicalDeliverySource::SHOP_UNREGISTERED,
+                    'requested_qty' => $requestedQty,
+                    'delivered_qty' => $deliveredQty,
+                    'qty_delta' => $qtyDelta,
+                    'fee_adjustment_amount' => $feeAdjustment,
+                    'fee_final_amount' => bcadd(
+                        $this->decimal((string) $request->fee_amount, self::FIAT_SCALE, 'fee_amount'),
+                        $feeAdjustment,
+                        self::FIAT_SCALE
+                    ),
                 ]),
             ])->save();
 
@@ -424,6 +447,10 @@ class MetalPhysicalDeliveryService
                     'source' => $source,
                     'lot_id' => $lotId,
                     'treasury_movement_id' => $movementId,
+                    'requested_qty' => $requestedQty,
+                    'delivered_qty' => $deliveredQty,
+                    'qty_delta' => $qtyDelta,
+                    'fee_adjustment_amount' => $feeAdjustment,
                     'fee_recognized_at' => now()->toIso8601String(),
                 ],
                 Auth::id(),
@@ -438,6 +465,66 @@ class MetalPhysicalDeliveryService
         }
 
         return $request;
+    }
+
+    /**
+     * وزن واقعی تحویل برای محصولات گرمی اجباری است؛ برای تعدادی باید برابر qty باشد.
+     */
+    private function resolveDeliveredQty(
+        array $data,
+        string $requestedQty,
+        string $unit,
+    ): string {
+        $raw = $data['delivered_qty'] ?? null;
+
+        if ($unit === 'count') {
+            if ($raw === null || $raw === '') {
+                return $requestedQty;
+            }
+            $delivered = $this->decimal((string) $raw, self::METAL_SCALE, 'delivered_qty');
+            if (bccomp($delivered, $requestedQty, self::METAL_SCALE) !== 0) {
+                throw new InvalidArgumentException('برای محصولات تعدادی، مقدار تحویل باید دقیقاً برابر مقدار درخواست باشد.');
+            }
+
+            return $delivered;
+        }
+
+        // gram (و سایر واحدهای وزنی): اپراتور باید وزن واقعی را وارد کند
+        if ($raw === null || $raw === '') {
+            throw new InvalidArgumentException('وزن واقعی تحویل‌شده الزامی است.');
+        }
+
+        $delivered = $this->decimal((string) $raw, self::METAL_SCALE, 'delivered_qty');
+        $this->assertPositive($delivered, self::METAL_SCALE, 'delivered_qty');
+
+        return $delivered;
+    }
+
+    /**
+     * تعدیل کارمزد بر اساس اختلاف وزن و نرخ/قیمت snapshot درخواست.
+     * مثبت = کسر اضافه از کیف ریالی؛ منفی = استرداد.
+     */
+    private function feeAdjustmentForDelta(MetalPhysicalDeliveryRequest $request, string $qtyDelta): string
+    {
+        if (bccomp($qtyDelta, '0', self::METAL_SCALE) === 0) {
+            return '0';
+        }
+
+        $absDelta = bccomp($qtyDelta, '0', self::METAL_SCALE) < 0
+            ? bcsub('0', $qtyDelta, self::METAL_SCALE)
+            : $qtyDelta;
+
+        $unitPrice = $this->decimal((string) $request->fee_unit_price, 0, 'fee_unit_price');
+        $ratePercent = $this->decimal((string) $request->fee_rate_percent, self::FEE_RATE_SCALE, 'fee_rate_percent');
+        $notional = bcmul($absDelta, $unitPrice, 6);
+        $feeExact = bcmul($notional, bcdiv($ratePercent, '100', 10), 6);
+        $absFee = $this->roundFiat($feeExact);
+
+        if (bccomp($qtyDelta, '0', self::METAL_SCALE) < 0) {
+            return bcmul($absFee, '-1', self::FIAT_SCALE);
+        }
+
+        return $absFee;
     }
 
     private function cancel(
@@ -496,11 +583,19 @@ class MetalPhysicalDeliveryService
 
         $metalTitle = $request->metalItem?->title ?: 'فلز';
         $qty = rtrim(rtrim((string) $request->qty, '0'), '.') ?: (string) $request->qty;
-        $unit = match ($request->metalItem?->unit) {
+        $unit = match ($request->metalItem?->unit ?? $request->unit) {
             'count' => 'عدد',
             default => 'گرم',
         };
         $subject = $qty . ' ' . $unit . ' ' . $metalTitle;
+        $deliveredSubject = $subject;
+        if ($status === MetalPhysicalDeliveryStatus::DELIVERED && $request->delivered_qty !== null) {
+            $deliveredQty = rtrim(rtrim((string) $request->delivered_qty, '0'), '.') ?: (string) $request->delivered_qty;
+            if ($deliveredQty !== $qty) {
+                $deliveredSubject = $deliveredQty . ' ' . $unit . ' ' . $metalTitle
+                    . ' (درخواست: ' . $qty . ' ' . $unit . ')';
+            }
+        }
 
         [$title, $content, $type] = match ($status) {
             MetalPhysicalDeliveryStatus::READY_FOR_PICKUP => [
@@ -510,7 +605,7 @@ class MetalPhysicalDeliveryService
             ],
             MetalPhysicalDeliveryStatus::DELIVERED => [
                 'تحویل فیزیکی انجام شد',
-                'درخواست تحویل فیزیکی شما (' . $subject . ') تحویل داده شد.',
+                'درخواست تحویل فیزیکی شما (' . $deliveredSubject . ') تحویل داده شد.',
                 'physical_delivery_delivered',
             ],
             MetalPhysicalDeliveryStatus::REJECTED => [
@@ -618,13 +713,54 @@ class MetalPhysicalDeliveryService
         ]);
     }
 
-    private function consumeReservedMetal(MetalTraderWallet $wallet, MetalPhysicalDeliveryRequest $request): void
-    {
+    /**
+     * تسویه کیف فلزی هنگام تحویل:
+     * - کمتر از درخواست: مصرف delivered از blocked + آزادسازی مابقی به available
+     * - بیشتر از درخواست: مصرف کامل رزرو + کسر مازاد از available
+     * - برابر: مصرف کامل رزرو
+     */
+    private function settleMetalOnDeliver(
+        MetalTraderWallet $wallet,
+        MetalPhysicalDeliveryRequest $request,
+        string $requestedQty,
+        string $deliveredQty,
+    ): void {
         if ($request->metal_consumed_at) {
             return;
         }
 
-        $qty = $this->decimal((string) $request->qty, self::METAL_SCALE, 'qty');
+        $cmp = bccomp($deliveredQty, $requestedQty, self::METAL_SCALE);
+
+        if ($cmp === 0) {
+            $this->consumeFromBlocked($wallet, $request, $requestedQty, 'metal-consume', 'کسر قطعی وزن رزروشده پس از تحویل فیزیکی');
+
+            return;
+        }
+
+        if ($cmp < 0) {
+            $shortfall = bcsub($requestedQty, $deliveredQty, self::METAL_SCALE);
+            $this->consumeFromBlocked($wallet, $request, $deliveredQty, 'metal-consume', 'کسر قطعی وزن تحویل‌شده پس از تحویل فیزیکی');
+            $this->unblockPartial($wallet, $request, $shortfall);
+
+            return;
+        }
+
+        $overage = bcsub($deliveredQty, $requestedQty, self::METAL_SCALE);
+        $this->consumeFromBlocked($wallet, $request, $requestedQty, 'metal-consume', 'کسر قطعی وزن رزروشده پس از تحویل فیزیکی');
+        $this->consumeFromAvailable($wallet, $request, $overage);
+    }
+
+    private function consumeFromBlocked(
+        MetalTraderWallet $wallet,
+        MetalPhysicalDeliveryRequest $request,
+        string $qty,
+        string $refSuffix,
+        string $descriptionPrefix,
+    ): void {
+        if (bccomp($qty, '0', self::METAL_SCALE) === 0) {
+            return;
+        }
+
         $blocked = $this->decimal((string) ($wallet->blocked_balance ?? '0'), self::METAL_SCALE, 'blocked');
 
         if (bccomp($blocked, $qty, self::METAL_SCALE) < 0) {
@@ -646,8 +782,126 @@ class MetalPhysicalDeliveryService
             'type' => 'metal_commitment_out',
             'balance_before' => $blocked,
             'balance_after' => $blockedAfter,
-            'reference_number' => 'PDR:' . $request->id . ':metal-consume',
-            'description' => sprintf('کسر قطعی وزن رزروشده پس از تحویل فیزیکی #%s', $request->tracking_code),
+            'reference_number' => 'PDR:' . $request->id . ':' . $refSuffix,
+            'description' => sprintf('%s #%s', $descriptionPrefix, $request->tracking_code),
+        ]);
+    }
+
+    private function unblockPartial(
+        MetalTraderWallet $wallet,
+        MetalPhysicalDeliveryRequest $request,
+        string $qty,
+    ): void {
+        if (bccomp($qty, '0', self::METAL_SCALE) === 0) {
+            return;
+        }
+
+        $available = $this->decimal((string) ($wallet->available_balance ?? '0'), self::METAL_SCALE, 'available');
+        $blocked = $this->decimal((string) ($wallet->blocked_balance ?? '0'), self::METAL_SCALE, 'blocked');
+
+        if (bccomp($blocked, $qty, self::METAL_SCALE) < 0) {
+            throw new RuntimeException('blocked_balance برای آزادسازی مابقی تحویل کافی نیست.');
+        }
+
+        $wallet->forceFill([
+            'available_balance' => bcadd($available, $qty, self::METAL_SCALE),
+            'blocked_balance' => bcsub($blocked, $qty, self::METAL_SCALE),
+        ])->save();
+
+        WalletTransaction::create([
+            'metal_trader_wallet_id' => $wallet->id,
+            'metal_order_id' => null,
+            'metal_physical_delivery_request_id' => $request->id,
+            'amount' => $qty,
+            'type' => 'unblock_collateral',
+            'balance_before' => $available,
+            'balance_after' => bcadd($available, $qty, self::METAL_SCALE),
+            'reference_number' => 'PDR:' . $request->id . ':metal-partial-unblock',
+            'description' => sprintf('بازگشت مابقی وزن تحویل فیزیکی #%s به موجودی آزاد', $request->tracking_code),
+        ]);
+    }
+
+    private function consumeFromAvailable(
+        MetalTraderWallet $wallet,
+        MetalPhysicalDeliveryRequest $request,
+        string $qty,
+    ): void {
+        if (bccomp($qty, '0', self::METAL_SCALE) === 0) {
+            return;
+        }
+
+        $available = $this->decimal((string) ($wallet->available_balance ?? '0'), self::METAL_SCALE, 'available');
+
+        if (bccomp($available, $qty, self::METAL_SCALE) < 0) {
+            throw new LogicException('موجودی آزاد فلز برای پوشش وزن بیشتر از درخواست کافی نیست.');
+        }
+
+        $availableAfter = bcsub($available, $qty, self::METAL_SCALE);
+
+        $wallet->forceFill([
+            'available_balance' => $availableAfter,
+        ])->save();
+
+        WalletTransaction::create([
+            'metal_trader_wallet_id' => $wallet->id,
+            'metal_order_id' => null,
+            'metal_physical_delivery_request_id' => $request->id,
+            'amount' => $qty,
+            'type' => 'metal_commitment_out',
+            'balance_before' => $available,
+            'balance_after' => $availableAfter,
+            'reference_number' => 'PDR:' . $request->id . ':metal-over-consume',
+            'description' => sprintf('کسر مازاد وزن تحویل فیزیکی #%s از موجودی آزاد', $request->tracking_code),
+        ]);
+    }
+
+    /**
+     * @return WalletTransaction|null تراکنش تعدیل کارمزد (استرداد یا کسر اضافه)
+     */
+    private function applyFeeAdjustment(MetalPhysicalDeliveryRequest $request, string $feeAdjustment): ?WalletTransaction
+    {
+        if (bccomp($feeAdjustment, '0', self::FIAT_SCALE) === 0) {
+            return null;
+        }
+
+        $traderId = (int) $request->metal_trader_id;
+        $fiatWallet = $this->lockOrCreateFiatWallet($traderId);
+        $before = $this->decimal((string) ($fiatWallet->available_balance ?? '0'), self::FIAT_SCALE, 'fiat');
+
+        if (bccomp($feeAdjustment, '0', self::FIAT_SCALE) < 0) {
+            $refund = bcmul($feeAdjustment, '-1', self::FIAT_SCALE);
+            $after = bcadd($before, $refund, self::FIAT_SCALE);
+            $fiatWallet->available_balance = $after;
+            $fiatWallet->save();
+
+            return WalletTransaction::create([
+                'metal_trader_wallet_id' => $fiatWallet->id,
+                'metal_order_id' => null,
+                'metal_physical_delivery_request_id' => $request->id,
+                'amount' => $refund,
+                'type' => 'deposit',
+                'balance_before' => $before,
+                'balance_after' => $after,
+                'reference_number' => 'PDR:' . $request->id . ':fee-partial-refund',
+                'description' => sprintf('استرداد کارمزد مابقی تحویل فیزیکی #%s', $request->tracking_code),
+            ]);
+        }
+
+        // مازاد وزن → کسر کارمزد اضافه (منفی شدن موجودی ریالی مجاز، مشابه ایجاد درخواست)
+        $after = bcsub($before, $feeAdjustment, self::FIAT_SCALE);
+        $fiatWallet->available_balance = $after;
+        $fiatWallet->save();
+
+        return WalletTransaction::create([
+            'metal_trader_wallet_id' => $fiatWallet->id,
+            'metal_order_id' => null,
+            'metal_physical_delivery_request_id' => $request->id,
+            'amount' => $feeAdjustment,
+            'type' => 'withdraw',
+            'balance_before' => $before,
+            'balance_after' => $after,
+            'reference_number' => 'PDR:' . $request->id . ':fee-overcharge',
+            'description' => sprintf('کارمزد مازاد وزن تحویل فیزیکی #%s', $request->tracking_code),
         ]);
     }
 

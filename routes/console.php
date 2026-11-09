@@ -24,6 +24,11 @@ Schedule::job(new \App\Jobs\MarkOverdueMetalOrderCoveragesJob)
     ->dailyAt('00:05')
     ->withoutOverlapping(60);
 
+Schedule::job(new \App\Jobs\AutoCloseStaleSupportTicketsJob)
+    ->timezone('Asia/Tehran')
+    ->hourly()
+    ->withoutOverlapping(30);
+
 //Schedule::command('job:market-price')
 //    ->everyMinute()
 //    ->runInBackground();

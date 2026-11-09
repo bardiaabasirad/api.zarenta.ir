@@ -49,6 +49,7 @@ use App\Http\Controllers\api\v1\admin\SettingController;
 use App\Http\Controllers\api\v1\admin\ShippingMethodController;
 use App\Http\Controllers\api\v1\admin\SizeUnitController;
 use App\Http\Controllers\api\v1\admin\SliderController;
+use App\Http\Controllers\api\v1\admin\SupportTicketController;
 use App\Http\Controllers\api\v1\admin\TokenController;
 use App\Http\Controllers\api\v1\admin\UserController;
 use App\Http\Controllers\api\v1\admin\VarietyController;
@@ -265,6 +266,14 @@ Route::prefix('v1/admin')
             Route::post('', [ContactController::class, 'store']);
             Route::patch('{contact}', [ContactController::class, 'update']);
             Route::delete('{contact}', [ContactController::class, 'destroy']);
+        });
+
+        // support tickets
+        Route::prefix('support-tickets')->group(function () {
+            Route::get('operators-stats', [SupportTicketController::class, 'operatorStats']);
+            Route::get('/', [SupportTicketController::class, 'index']);
+            Route::get('{ticket}', [SupportTicketController::class, 'show']);
+            Route::post('{ticket}/reply', [SupportTicketController::class, 'reply']);
         });
 
         // Gateways

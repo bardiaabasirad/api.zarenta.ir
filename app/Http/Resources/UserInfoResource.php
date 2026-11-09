@@ -19,6 +19,7 @@ class UserInfoResource extends JsonResource
             'phone' => $this->phone,
             'national_code' => $this->national_code,
             'born_at' => $this->born_at,
+            'avatar' => $this->avatar,
         ];
     }
 }

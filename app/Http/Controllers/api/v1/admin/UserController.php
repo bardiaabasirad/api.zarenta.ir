@@ -35,7 +35,7 @@ class UserController extends Controller
 
         $users = User::query();
 
-        $users = $users->select('id','full_name','phone','status','last_seen')
+        $users = $users->select('id','full_name','phone','avatar','status','last_seen')
             ->when(isset($status) && $status !== 'all', function ($query) use ($status){
                 $query->where('status', $status);
             })

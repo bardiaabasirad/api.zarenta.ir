@@ -15,6 +15,7 @@ use App\Http\Controllers\api\v1\general\ProductController;
 use App\Http\Controllers\api\v1\general\SearchController;
 use App\Http\Controllers\api\v1\general\PageController;
 use App\Http\Controllers\api\v1\general\SettingController;
+use App\Http\Controllers\api\v1\general\SupportTicketController;
 use App\Http\Controllers\api\v1\general\RateController;
 use App\Http\Controllers\api\v1\general\TransactionController;
 use App\Http\Controllers\api\v1\general\UserController;
@@ -85,6 +86,17 @@ Route::prefix('v1')->middleware(['user.activity'])->group(function () {
         Route::get('orders/{code}', [OrderController::class, 'show']);
         Route::post('orders/{order}/cancel', [OrderController::class, 'cancel']);
         Route::post('orders/{order}/repayment', [OrderController::class, 'repayment']);
+
+        Route::prefix('support-tickets')->group(function () {
+            Route::get('/', [SupportTicketController::class, 'index']);
+            Route::post('/', [SupportTicketController::class, 'store']);
+            Route::get('{ticket}', [SupportTicketController::class, 'show']);
+            Route::post('{ticket}/reply', [SupportTicketController::class, 'reply']);
+            Route::post('{ticket}/close', [SupportTicketController::class, 'close']);
+        });
+
+        Route::post('profile/avatar', [UserController::class, 'uploadAvatar']);
+        Route::delete('profile/avatar', [UserController::class, 'deleteAvatar']);
     });
 
     Route::post('check-cart', [CartController::class, 'checkCart']);

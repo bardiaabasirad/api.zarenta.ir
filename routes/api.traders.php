@@ -13,6 +13,7 @@ use App\Http\Controllers\api\v1\metalTrader\NotificationController as TraderNoti
 use App\Http\Controllers\api\v1\metalTrader\OrderController;
 use App\Http\Controllers\api\v1\metalTrader\PresenceController;
 use App\Http\Controllers\api\v1\metalTrader\RateController;
+use App\Http\Controllers\api\v1\metalTrader\SupportTicketController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
@@ -124,6 +125,14 @@ Route::prefix('v1/traders')
         Route::get('transactions', [\App\Http\Controllers\api\v1\metalTrader\TransactionController::class, 'index']);
         Route::get('transactions/pdf', [\App\Http\Controllers\PdfController::class, 'generateClientTransactionPDF']);
         Route::get('contacts', [ContactController::class, 'index']);
+
+        Route::prefix('support-tickets')->group(function () {
+            Route::get('/', [SupportTicketController::class, 'index']);
+            Route::post('/', [SupportTicketController::class, 'store']);
+            Route::get('{ticket}', [SupportTicketController::class, 'show']);
+            Route::post('{ticket}/reply', [SupportTicketController::class, 'reply']);
+            Route::post('{ticket}/close', [SupportTicketController::class, 'close']);
+        });
 
         // inquiries
         Route::prefix('inquiries')->group(function () {

@@ -93,6 +93,14 @@ class AssetService
                 ? bcsub('0', $fiatAmount, self::FIAT_SCALE)
                 : $fiatAmount;
 
+            $order->loadMissing([
+                'metalItem' => static fn ($query) => $query->withoutGlobalScopes(),
+            ]);
+
+            // نقد حاضر (T0/spot): تومان فوراً روی کیف نقدی (metal_item_id = null)
+            // تعهدی (T1/T2): تومان روی fiat_balance همان کیف فلز می‌ماند تا تسویه
+            $isSpot = (bool) ($order->metalItem?->is_spot);
+
             $wallet = MetalTraderWallet::query()->firstOrCreate(
                 [
                     'metal_trader_id' => $order->created_id,
@@ -112,11 +120,9 @@ class AssetService
                 ->firstOrFail();
 
             $metalBefore = self::decimal($wallet->available_balance ?? '0', self::METAL_SCALE, 'available_balance');
-            $fiatBefore  = self::decimal($wallet->fiat_balance ?? '0', self::FIAT_SCALE, 'fiat_balance');
             $avgBefore   = self::decimal($wallet->avg_buy_price ?? '0', self::PRICE_SCALE, 'avg_buy_price');
 
             $metalAfter = bcadd($metalBefore, $metalDelta, self::METAL_SCALE);
-            $fiatAfter  = bcadd($fiatBefore, $fiatDelta, self::FIAT_SCALE);
 
             // محاسبه قیمت واحد سفارش فعلی (مثلاً ۱۸,۵۶۰,۴۰۵)
             $orderUnitPrice = self::bcdivRound($fiatAmount, $quantity, self::PRICE_SCALE);
@@ -134,41 +140,124 @@ class AssetService
                 isBuy: $isBuy
             );
 
-            // ثبت در کیف پول
-            $wallet->forceFill([
-                'available_balance' => $metalAfter,
-                'fiat_balance'      => $fiatAfter,
-                'avg_buy_price'     => $avgAfter,
-            ])->save();
+            if ($isSpot) {
+                $cashWallet = self::getOrCreateCashWallet((int) $order->created_id);
+                $cashWallet = MetalTraderWallet::query()
+                    ->whereKey($cashWallet->getKey())
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
-            // ردیف دفتر کل طلا
-            $metalTransaction = WalletTransaction::create([
-                'metal_trader_wallet_id' => $wallet->getKey(),
-                'metal_order_id'         => $order->getKey(),
-                'related_transaction_id' => null,
-                'amount'                 => self::absolute($metalDelta),
-                'type'                   => $metalType,
-                'balance_before'         => $metalBefore,
-                'balance_after'          => $metalAfter,
-                'description'            => sprintf('ثبت تعهد فلزی سفارش #%s', $order->getKey()),
-            ]);
+                $cashBefore = self::decimal(
+                    $cashWallet->available_balance ?? '0',
+                    self::FIAT_SCALE,
+                    'available_balance'
+                );
+                $cashAfter = bcadd($cashBefore, $fiatDelta, self::FIAT_SCALE);
 
-            // ردیف دفتر کل فیات
-            $fiatTransaction = WalletTransaction::create([
-                'metal_trader_wallet_id' => $wallet->getKey(),
-                'metal_order_id'         => $order->getKey(),
-                'related_transaction_id' => $metalTransaction->getKey(),
-                'amount'                 => self::absolute($fiatDelta),
-                'type'                   => $fiatType,
-                'balance_before'         => $fiatBefore,
-                'balance_after'          => $fiatAfter,
-                'description'            => sprintf('ثبت تعهد تومانی سفارش #%s', $order->getKey()),
-            ]);
+                $wallet->forceFill([
+                    'available_balance' => $metalAfter,
+                    'avg_buy_price'     => $avgAfter,
+                ])->save();
+
+                $cashWallet->forceFill([
+                    'available_balance' => $cashAfter,
+                ])->save();
+
+                // نقد حاضر همان لحظه تسویه شده است؛ نباید وارد مسیر تسویه تعهدی شود
+                if ($order->settlement_status !== 'settled') {
+                    $order->forceFill(['settlement_status' => 'settled'])->save();
+                }
+
+                $metalTransaction = WalletTransaction::create([
+                    'metal_trader_wallet_id' => $wallet->getKey(),
+                    'metal_order_id'         => $order->getKey(),
+                    'related_transaction_id' => null,
+                    'amount'                 => self::absolute($metalDelta),
+                    'type'                   => $metalType,
+                    'balance_before'         => $metalBefore,
+                    'balance_after'          => $metalAfter,
+                    'description'            => sprintf('ثبت فلز سفارش نقد حاضر #%s', $order->getKey()),
+                ]);
+
+                $fiatTransaction = WalletTransaction::create([
+                    'metal_trader_wallet_id' => $cashWallet->getKey(),
+                    'metal_order_id'         => $order->getKey(),
+                    'related_transaction_id' => $metalTransaction->getKey(),
+                    'amount'                 => self::absolute($fiatDelta),
+                    'type'                   => $fiatType,
+                    'balance_before'         => $cashBefore,
+                    'balance_after'          => $cashAfter,
+                    'description'            => sprintf(
+                        '%s تومان سفارش نقد حاضر #%s',
+                        $isBuy ? 'کسر' : 'واریز',
+                        $order->getKey()
+                    ),
+                ]);
+            } else {
+                $fiatBefore = self::decimal($wallet->fiat_balance ?? '0', self::FIAT_SCALE, 'fiat_balance');
+                $fiatAfter  = bcadd($fiatBefore, $fiatDelta, self::FIAT_SCALE);
+
+                $wallet->forceFill([
+                    'available_balance' => $metalAfter,
+                    'fiat_balance'      => $fiatAfter,
+                    'avg_buy_price'     => $avgAfter,
+                ])->save();
+
+                $metalTransaction = WalletTransaction::create([
+                    'metal_trader_wallet_id' => $wallet->getKey(),
+                    'metal_order_id'         => $order->getKey(),
+                    'related_transaction_id' => null,
+                    'amount'                 => self::absolute($metalDelta),
+                    'type'                   => $metalType,
+                    'balance_before'         => $metalBefore,
+                    'balance_after'          => $metalAfter,
+                    'description'            => sprintf('ثبت تعهد فلزی سفارش #%s', $order->getKey()),
+                ]);
+
+                $fiatTransaction = WalletTransaction::create([
+                    'metal_trader_wallet_id' => $wallet->getKey(),
+                    'metal_order_id'         => $order->getKey(),
+                    'related_transaction_id' => $metalTransaction->getKey(),
+                    'amount'                 => self::absolute($fiatDelta),
+                    'type'                   => $fiatType,
+                    'balance_before'         => $fiatBefore,
+                    'balance_after'          => $fiatAfter,
+                    'description'            => sprintf('ثبت تعهد تومانی سفارش #%s', $order->getKey()),
+                ]);
+            }
 
             $metalTransaction->forceFill([
                 'related_transaction_id' => $fiatTransaction->getKey(),
             ])->save();
         }, 3);
+    }
+
+    private static function getOrCreateCashWallet(int $traderId): MetalTraderWallet
+    {
+        $wallet = MetalTraderWallet::query()
+            ->where('metal_trader_id', $traderId)
+            ->whereNull('metal_item_id')
+            ->first();
+
+        if ($wallet) {
+            return $wallet;
+        }
+
+        try {
+            return MetalTraderWallet::query()->create([
+                'metal_trader_id'   => $traderId,
+                'metal_item_id'     => null,
+                'available_balance' => '0',
+                'blocked_balance'   => '0',
+                'fiat_balance'      => '0',
+                'avg_buy_price'     => '0',
+            ]);
+        } catch (\Illuminate\Database\QueryException) {
+            return MetalTraderWallet::query()
+                ->where('metal_trader_id', $traderId)
+                ->whereNull('metal_item_id')
+                ->firstOrFail();
+        }
     }
 
     /**

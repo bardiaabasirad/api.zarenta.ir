@@ -154,7 +154,10 @@ class OrderController extends Controller
             'status' => $status,
             'extra_data' => $extraData,
             'settlement_date' => $settlementDate,
-            'settlement_status' => $settlementDate->isAfter(today()) ? 'pending' : 'settled',
+            // نقد حاضر (is_spot/T0) همان لحظه تسویه است؛ تعهدی تا تاریخ سررسید pending می‌ماند
+            'settlement_status' => ($metalItem->is_spot || ! $settlementDate->isAfter(today()))
+                ? 'settled'
+                : 'pending',
             'product_name' => $metalItem->title,
             'qty' => $quantity,
             'unit' => $metalItem->unit,

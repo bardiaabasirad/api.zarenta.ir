@@ -12,9 +12,28 @@ class AssetController extends Controller
 {
     public function assets()
     {
+        $traderId = auth()->id();
+
+        // کیف‌پول تومانی حاضر (metal_item_id = null) همیشه وجود داشته باشد
+        $fiatWallet = MetalTraderWallet::query()
+            ->where('metal_trader_id', $traderId)
+            ->whereNull('metal_item_id')
+            ->first();
+
+        if (! $fiatWallet) {
+            MetalTraderWallet::query()->create([
+                'metal_trader_id' => $traderId,
+                'metal_item_id' => null,
+                'available_balance' => 0,
+                'blocked_balance' => 0,
+                'fiat_balance' => 0,
+                'avg_buy_price' => 0,
+            ]);
+        }
+
         // ۱. استخراج والت‌ها به همراه اطلاعات کالا بدون هیچ Global Scope
         $groupedAssets = MetalTraderWallet::query()
-            ->where('metal_trader_wallets.metal_trader_id', auth()->id())
+            ->where('metal_trader_wallets.metal_trader_id', $traderId)
             ->leftJoin('metal_items', 'metal_trader_wallets.metal_item_id', '=', 'metal_items.id')
             ->with([
                 'metalItem' => function ($query) {
@@ -35,10 +54,16 @@ class AssetController extends Controller
             ->orderBy('metal_items.sort_order', 'asc')
             ->get()
             ->groupBy(function ($wallet) {
-                return (is_null($wallet->metal_item_id) || $wallet->metalItem?->is_spot)
+                return ($wallet->metal_item_id === null || $wallet->metalItem?->is_spot)
                     ? 'spot_and_cash'
                     : 'forward_items';
             });
+
+        // کلیدها همیشه موجود و آرایه‌ای با ایندکس پیوسته باشند
+        $groupedAssets = [
+            'spot_and_cash' => ($groupedAssets->get('spot_and_cash') ?? collect())->values(),
+            'forward_items' => ($groupedAssets->get('forward_items') ?? collect())->values(),
+        ];
 
         $since = now()->subDay()->startOfDay();
 

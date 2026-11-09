@@ -13,6 +13,7 @@ use App\Http\Controllers\api\v1\general\PersianCoinController;
 use App\Http\Controllers\api\v1\general\PresenceController;
 use App\Http\Controllers\api\v1\general\ProductController;
 use App\Http\Controllers\api\v1\general\SearchController;
+use App\Http\Controllers\api\v1\general\PageController;
 use App\Http\Controllers\api\v1\general\SettingController;
 use App\Http\Controllers\api\v1\general\RateController;
 use App\Http\Controllers\api\v1\general\TransactionController;
@@ -98,6 +99,8 @@ Route::prefix('v1')->middleware(['user.activity'])->group(function () {
     Route::get('get-aggregated-rates', [RateController::class, 'getAggregatedRates']);
     // contact information
     Route::get('contact-info', [SettingController::class, 'contactInfo']);
+    // pages
+    Route::get('pages/terms', [PageController::class, 'terms']);
     // products
     Route::get('products', [ProductController::class, 'index']);
     Route::get('products/{product}', [ProductController::class, 'show']);

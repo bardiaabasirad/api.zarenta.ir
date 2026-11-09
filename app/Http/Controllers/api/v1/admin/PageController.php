@@ -5,6 +5,7 @@ namespace App\Http\Controllers\api\v1\admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PageAboutUpdateRequest;
 use App\Http\Requests\PageContactUpdateRequest;
+use App\Http\Requests\PageTermsUpdateRequest;
 use App\Models\Page;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
@@ -22,7 +23,10 @@ class PageController extends Controller
                 'settings' => Setting::whereIn('option_key', [
                     'support_center_contact_number','support_contact_number','eitaa_channel','instagram_channel','address'
                 ])->get()
-            ]
+            ],
+            'terms' => [
+                'page' => Page::where('slug','terms')->firstOrFail()
+            ],
         ]);
     }
 
@@ -39,6 +43,11 @@ class PageController extends Controller
         ]);
     }
 
+    public function terms()
+    {
+        return response()->json(Page::where('slug', 'terms')->firstOrFail());
+    }
+
     public function updateAbout(PageAboutUpdateRequest $request)
     {
         Page::where('slug','about')->update([
@@ -46,7 +55,7 @@ class PageController extends Controller
         ]);
 
         return response()->json([
-            'message' => 'صفحه درباره ما با موفقیت بروزرسانی شد',
+            'message' => __('messages.the_about_page_has_been_successfully_updated'),
         ]);
     }
 
@@ -59,7 +68,20 @@ class PageController extends Controller
         Cache::delete('contact_page');
 
         return response()->json([
-            'message' => 'سفحه تماس با ما با موفقیت بروزرسانی شد',
+            'message' => __('messages.the_contact_page_has_been_successfully_updated'),
+        ]);
+    }
+
+    public function updateTerms(PageTermsUpdateRequest $request)
+    {
+        Page::where('slug', 'terms')->update([
+            'body' => $request->body
+        ]);
+
+        Cache::delete('terms_page');
+
+        return response()->json([
+            'message' => __('messages.the_terms_page_has_been_successfully_updated'),
         ]);
     }
 }

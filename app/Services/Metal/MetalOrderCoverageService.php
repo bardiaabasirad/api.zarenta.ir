@@ -2,12 +2,10 @@
 
 namespace App\Services\Metal;
 
-use App\Constants\MetalCoverageAttemptStatus;
 use App\Constants\MetalCoverageStatus;
 use App\Constants\MetalTreasurySourceType;
 use App\Models\MetalOrder;
 use App\Models\MetalOrderCoverageAllocation;
-use App\Models\MetalOrderCoverageAttempt;
 use App\Models\MetalTreasuryLot;
 use App\Models\MetalTreasuryPhysicalPurchase;
 use App\Services\MetalOrderService;

@@ -179,6 +179,30 @@ class SubmitHamtalaOrder implements ShouldQueue
      */
     public function rejectMetalOrder(string $cause = 'partner_retry_limit_reached', string $message = 'تغییر مظنه'): void
     {
+        $order = $this->metalOrder->fresh();
+
+        // اگر بخشی از فروش قبلاً به خریدهای باز تخصیص شده، کل سفارش را reject نکن؛
+        // مابقی با پاک شدن partner_sell_qty وارد خزانه می‌شود.
+        if (
+            $order
+            && $order->order_type === 'sell'
+            && bccomp((string) (($order->extra_data['matched_to_buys_qty'] ?? '0')), '0', 3) > 0
+        ) {
+            $extra = $order->extra_data ?? [];
+            unset($extra['partner_sell_qty']);
+            $extra['partner_sell_failed'] = true;
+            $extra['partner_sell_fail_cause'] = $cause;
+            $order->extra_data = $extra;
+            $order->save();
+
+            MetalOrderService::markAsSucceedAndUpdateStock(
+                $order->fresh(),
+                ['succeed_at' => Carbon::now()]
+            );
+
+            return;
+        }
+
         MetalOrderService::markAsRejected(
             $this->metalOrder,
             [

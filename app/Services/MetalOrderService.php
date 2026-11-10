@@ -96,7 +96,7 @@ class MetalOrderService
         ) {
             AssetService::updateAsset($metalOrder->fresh());
 
-            // فروش کاربر → ورود Lot به خزانه سیستم (بدون تخصیص خودکار)
+            // فروش کاربر → ورود Lot به خزانه و تخصیص خودکار به کسری خریدهای باز
             if ($metalOrder->order_type === 'sell') {
                 try {
                     app(\App\Services\Metal\MetalOrderCoverageService::class)

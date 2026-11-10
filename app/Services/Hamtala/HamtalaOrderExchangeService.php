@@ -118,15 +118,25 @@ class HamtalaOrderExchangeService
             return 'auto_order_dispatch_is_off';
         }
 
+        $extra = $metalOrder->extra_data ?? [];
+        // وزن هدف جزئی: پوشش کسری خرید، یا مابقی فروش پس از تطبیق با خریدهای باز
+        $isFixedPartnerQty = isset($extra['coverage_attempt_id'])
+            || array_key_exists('partner_sell_qty', $extra);
+        $quantity = round((float) (
+            $isFixedPartnerQty && isset($extra['auto_order_quantity'])
+                ? $extra['auto_order_quantity']
+                : ($metalOrder->qty ?? 0)
+        ), 3);
+
         $minWeight = $metalItemAutoOrder->min_auto_buy_weight ?? 0;
 
-        if ($metalOrder->qty < $minWeight) {
+        if ($quantity < $minWeight) {
             return "minimum_weight_not_met";
         }
 
         $maxWeight = $metalItemAutoOrder->max_auto_buy_weight ?? INF;
 
-        if ($metalOrder->qty > $maxWeight) {
+        if ($quantity > $maxWeight) {
             return "maximum_weight_not_met";
         }
 
@@ -139,40 +149,43 @@ class HamtalaOrderExchangeService
 
         $buyOrSell = $isBuy ? 1 : 2;
 
-        $quantity = round((float)($metalOrder->qty ?? 0), 3);
-
         if (($metalOrder->unit ?? null) === 'count') {
             $count = $quantity;
             $productType = '2'; // سکه
         } else {
             $productType = '1'; // طلا
 
-            $metalItem = MetalItem::query()
-                ->select('id', 'metal_item_group_id')
-                ->findOrFail($metalItemID);
-
-            $settings = Setting::whereIn('option_key', [
-                'min_melted_stock_quantity',
-                'max_melted_stock_quantity',
-                'melted_stock_quantity',
-            ])->pluck('option_value', 'option_key');
-
-            if ($metalItem->metal_item_group_id === self::GROUP_MELTED) {
-                if ($isBuy) {
-                    $newStock = round((float)$settings['melted_stock_quantity'] - $quantity, 3);
-                    if ($newStock >= $settings['min_melted_stock_quantity']) {
-                        return 'should_confirm';
-                    }
-                    $weight = min($settings['min_melted_stock_quantity'] - $newStock, $quantity);
-                } else {
-                    $newStock = round((float)$settings['melted_stock_quantity'] + $quantity, 3);
-                    if ($newStock <= $settings['max_melted_stock_quantity']) {
-                        return 'should_confirm';
-                    }
-                    $weight = min($newStock - $settings['max_melted_stock_quantity'], $quantity);
-                }
-            } else {
+            // برای پوشش کسری خرید / مابقی فروش، همان مقدار هدف را از همکار می‌خواهیم
+            if ($isFixedPartnerQty) {
                 $weight = $quantity;
+            } else {
+                $metalItem = MetalItem::query()
+                    ->select('id', 'metal_item_group_id')
+                    ->findOrFail($metalItemID);
+
+                $settings = Setting::whereIn('option_key', [
+                    'min_melted_stock_quantity',
+                    'max_melted_stock_quantity',
+                    'melted_stock_quantity',
+                ])->pluck('option_value', 'option_key');
+
+                if ($metalItem->metal_item_group_id === self::GROUP_MELTED) {
+                    if ($isBuy) {
+                        $newStock = round((float)$settings['melted_stock_quantity'] - $quantity, 3);
+                        if ($newStock >= $settings['min_melted_stock_quantity']) {
+                            return 'should_confirm';
+                        }
+                        $weight = min($settings['min_melted_stock_quantity'] - $newStock, $quantity);
+                    } else {
+                        $newStock = round((float)$settings['melted_stock_quantity'] + $quantity, 3);
+                        if ($newStock <= $settings['max_melted_stock_quantity']) {
+                            return 'should_confirm';
+                        }
+                        $weight = min($newStock - $settings['max_melted_stock_quantity'], $quantity);
+                    }
+                } else {
+                    $weight = $quantity;
+                }
             }
         }
 
@@ -342,28 +355,14 @@ class HamtalaOrderExchangeService
             $update['resolved_at'] = now();
 
             if (!$metalOrder->fresh()->isFinalized()) {
-                MetalOrderService::markAsRejected(
-                    $metalOrder,
-                    [
-                        'cause' => 'partner_retry_limit_reached',
-                        'message' => $message,
-                        'rejected_at' => Carbon::now(),
-                    ]
-                );
+                $this->rejectOrKeepSellRemainder($metalOrder, 'partner_retry_limit_reached', $message);
             }
         } else {
             $update['status'] = 'error';
             $update['resolved_at'] = now();
 
             if (!$metalOrder->fresh()->isFinalized()) {
-                MetalOrderService::markAsRejected(
-                    $metalOrder,
-                    [
-                        'cause' => 'partner_retry_limit_reached',
-                        'message' => $message,
-                        'rejected_at' => Carbon::now(),
-                    ]
-                );
+                $this->rejectOrKeepSellRemainder($metalOrder, 'partner_retry_limit_reached', $message);
             }
         }
 
@@ -389,5 +388,46 @@ class HamtalaOrderExchangeService
                 'resolved_at' => now(),
             ]);
         }
+    }
+
+    /**
+     * اگر فروش قبلاً به خریدهای باز تخصیص شده باشد، reject نکن؛
+     * مابقی با حذف partner_sell_qty وارد خزانه می‌شود.
+     */
+    private function rejectOrKeepSellRemainder(
+        MetalOrder $metalOrder,
+        string $cause,
+        ?string $message = null
+    ): void {
+        $order = $metalOrder->fresh();
+
+        if (
+            $order
+            && $order->order_type === 'sell'
+            && bccomp((string) (($order->extra_data['matched_to_buys_qty'] ?? '0')), '0', 3) > 0
+        ) {
+            $extra = $order->extra_data ?? [];
+            unset($extra['partner_sell_qty']);
+            $extra['partner_sell_failed'] = true;
+            $extra['partner_sell_fail_cause'] = $cause;
+            $order->extra_data = $extra;
+            $order->save();
+
+            MetalOrderService::markAsSucceedAndUpdateStock(
+                $order->fresh(),
+                ['succeed_at' => Carbon::now()]
+            );
+
+            return;
+        }
+
+        MetalOrderService::markAsRejected(
+            $metalOrder,
+            [
+                'cause' => $cause,
+                'message' => $message,
+                'rejected_at' => Carbon::now(),
+            ]
+        );
     }
 }

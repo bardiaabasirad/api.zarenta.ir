@@ -27,8 +27,9 @@ class MetalOrderCoverageService
     }
 
     /**
-     * پوشش خودکار خرید: خزانه → در صورت نیاز همکار برای کل کسری (اگر خزانه صفر بود).
-     * اگر بخشی از خزانه پوشش شد، کسری باز می‌ماند و سفارش reject نمی‌شود.
+     * پوشش خودکار خرید: اول خزانه، سپس مابقی کسری از همکار
+     * (فقط اگر ثبت سفارش خودکار همکار برای آن فلز باز باشد).
+     * شکست همکار سفارش را reject نمی‌کند؛ کسری باز می‌ماند.
      */
     public function coverBuyOrder(MetalOrder $order, ?string $idempotencyKey = null, bool $tryPartner = true): MetalOrder
     {
@@ -88,18 +89,16 @@ class MetalOrderCoverageService
                 'order' => $order,
                 'open_before_partner' => (string) $order->open_qty,
                 'treasury_covered' => $treasuryCovered,
-                'available_was_zero' => bccomp($available, '0', MetalTreasuryLedgerService::METAL_SCALE) === 0,
             ];
         });
 
         $order = $result['order'];
 
-        // همکار فقط وقتی خزانه صفر بود و کل سفارش باز است (طبق مشخصات بخش ۲)
+        // مابقی کسری پس از خزانه → همکار (اگر ثبت خودکار باز باشد)
         if (
             $tryPartner
-            && ($result['available_was_zero'] ?? false)
             && bccomp((string) $order->open_qty, '0', MetalTreasuryLedgerService::METAL_SCALE) > 0
-            && bccomp((string) $order->covered_qty, '0', MetalTreasuryLedgerService::METAL_SCALE) === 0
+            && $this->isPartnerAutoOrderOpen($order)
         ) {
             $order = $this->partner->coverOpenQtyFromPartner(
                 $order,
@@ -112,6 +111,30 @@ class MetalOrderCoverageService
         $this->finalizeIfFullyCovered($order);
 
         return $order->fresh();
+    }
+
+    /**
+     * آیا ثبت سفارش خودکار همکار (سراسری + تنظیم فلز) باز است؟
+     */
+    public function isPartnerAutoOrderOpen(MetalOrder $order): bool
+    {
+        try {
+            $globalEnabled = \App\Models\Setting::query()
+                ->where('option_key', 'auto_order_dispatch_enabled')
+                ->value('option_value');
+
+            if (! $globalEnabled) {
+                return false;
+            }
+
+            $hamtala = app(\App\Services\Hamtala\HamtalaOrderExchangeService::class);
+
+            return ! $hamtala->isAutoOrderDisabled($order);
+        } catch (Throwable $e) {
+            report($e);
+
+            return false;
+        }
     }
 
     public function allocateFromTreasury(
@@ -203,12 +226,13 @@ class MetalOrderCoverageService
         int $lotId,
         string $qty,
         ?string $idempotencyKey = null,
+        string $reason = 'admin_user_sell_allocate',
     ): MetalOrder {
         $idempotencyKey = MetalTreasuryLedgerService::normalizeIdempotencyKey(
             $idempotencyKey ?: ('aus:' . $order->id . ':' . $lotId . ':' . Str::lower(Str::random(12)))
         );
 
-        return DB::transaction(function () use ($order, $lotId, $qty, $idempotencyKey) {
+        return DB::transaction(function () use ($order, $lotId, $qty, $idempotencyKey, $reason) {
             $order = MetalOrder::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
             $this->initializeCoverageFields($order);
             $this->assertBuyOpen($order);
@@ -227,6 +251,7 @@ class MetalOrderCoverageService
             $this->assertLotCompatible($order, $lot, $allowed);
 
             $take = $this->ledger->minQty($qty, (string) $lot->remaining_qty);
+            $this->ledger->assertPositiveQty($take);
 
             $this->ledger->recordMovement([
                 'lot_id' => $lot->id,
@@ -237,7 +262,7 @@ class MetalOrderCoverageService
                 'actor_id' => Auth::id(),
                 'actor_type' => $this->actorType(),
                 'idempotency_key' => MetalTreasuryLedgerService::normalizeIdempotencyKey($idempotencyKey . ':mov'),
-                'reason' => 'admin_user_sell_allocate',
+                'reason' => $reason,
             ]);
 
             $this->createAllocationFromLot(
@@ -254,6 +279,126 @@ class MetalOrderCoverageService
 
             return $order->fresh();
         });
+    }
+
+    /**
+     * کسری خریدهای باز سازگار با این لات فروش را FIFO پوشش بده.
+     */
+    public function distributeUserSellLotToOpenBuys(MetalTreasuryLot $lot): MetalTreasuryLot
+    {
+        if ($lot->source_type !== MetalTreasurySourceType::USER_WALLET_SELL) {
+            return $lot;
+        }
+
+        if (bccomp((string) $lot->remaining_qty, '0', MetalTreasuryLedgerService::METAL_SCALE) <= 0) {
+            return $lot;
+        }
+
+        $lotMetalItemId = (int) $lot->metal_item_id;
+        $lotMaturity = (string) $lot->maturity_code;
+
+        foreach ($this->openBuyCandidatesForSellSource($lotMetalItemId, $lotMaturity) as $order) {
+            $lot = $lot->fresh();
+
+            if (!$lot || bccomp((string) $lot->remaining_qty, '0', MetalTreasuryLedgerService::METAL_SCALE) <= 0) {
+                break;
+            }
+
+            if (!$this->maturity->isSourceMetalItemAllowed($order, $lotMetalItemId)) {
+                continue;
+            }
+
+            if (!$this->maturity->isSourceAllowed($this->maturity->codeForOrder($order), $lotMaturity)) {
+                continue;
+            }
+
+            $take = $this->ledger->minQty((string) $order->open_qty, (string) $lot->remaining_qty);
+
+            if (bccomp($take, '0', MetalTreasuryLedgerService::METAL_SCALE) <= 0) {
+                continue;
+            }
+
+            $this->allocateFromUserSellLot(
+                order: $order,
+                lotId: (int) $lot->id,
+                qty: $take,
+                idempotencyKey: 'auto-user-sell:' . ($lot->source_id ?? $lot->id) . ':buy:' . $order->id,
+                reason: 'auto_user_sell_allocate',
+            );
+        }
+
+        return $lot->fresh() ?? $lot;
+    }
+
+    /**
+     * فروش کاربر → اول تطبیق با خریدهای باز (فقط مقدار تطبیق‌شده وارد خزانه می‌شود).
+     *
+     * @return array{matched_qty: string, remainder_qty: string, lot: ?MetalTreasuryLot}
+     */
+    public function matchUserSellToOpenBuys(MetalOrder $sellOrder): array
+    {
+        if ($sellOrder->order_type !== 'sell') {
+            return ['matched_qty' => '0.000', 'remainder_qty' => '0.000', 'lot' => null];
+        }
+
+        $sellOrder = $this->maturity->ensureOrderSettlement($sellOrder);
+        $sellQty = $this->ledger->decimal($sellOrder->qty, MetalTreasuryLedgerService::METAL_SCALE, 'qty');
+        $maturity = $this->maturity->codeForOrder($sellOrder);
+        $key = 'user-sell-in:' . $sellOrder->id;
+
+        $existing = \App\Models\MetalTreasuryMovement::query()
+            ->where('idempotency_key', $key)
+            ->first();
+
+        if ($existing) {
+            $lot = MetalTreasuryLot::query()->find($existing->lot_id);
+            if ($lot) {
+                $lot = $this->distributeUserSellLotToOpenBuys($lot);
+            }
+
+            $matched = $this->ledger->decimal($lot?->initial_qty ?? '0', MetalTreasuryLedgerService::METAL_SCALE, 'matched');
+            $remainder = bcsub($sellQty, $matched, MetalTreasuryLedgerService::METAL_SCALE);
+            if (bccomp($remainder, '0', MetalTreasuryLedgerService::METAL_SCALE) < 0) {
+                $remainder = '0.000';
+            }
+
+            $this->persistSellMatchMeta($sellOrder, $matched, $remainder);
+
+            return ['matched_qty' => $matched, 'remainder_qty' => $remainder, 'lot' => $lot];
+        }
+
+        $openDemand = $this->compatibleOpenBuyDemand(
+            (int) $sellOrder->metal_item_id,
+            $maturity
+        );
+        $matched = $this->ledger->minQty($sellQty, $openDemand);
+        $remainder = bcsub($sellQty, $matched, MetalTreasuryLedgerService::METAL_SCALE);
+
+        $lot = null;
+        if (bccomp($matched, '0', MetalTreasuryLedgerService::METAL_SCALE) > 0) {
+            $lot = $this->ledger->createLot([
+                'metal_item_id' => $sellOrder->metal_item_id,
+                'maturity_code' => $maturity,
+                'settlement_date' => $sellOrder->settlement_date,
+                'source_type' => MetalTreasurySourceType::USER_WALLET_SELL,
+                'source_id' => $sellOrder->id,
+                'initial_qty' => $matched,
+                'unit_cost' => (string) (int) round((float) $sellOrder->fee),
+                'purchased_at' => $sellOrder->updated_at ?? now(),
+                'metal_order_id' => $sellOrder->id,
+                'reason' => 'user_wallet_sell_match',
+                'meta' => [
+                    'sell_order_tracking_code' => $sellOrder->tracking_code,
+                    'matched_only' => true,
+                ],
+            ], $key);
+
+            $lot = $this->distributeUserSellLotToOpenBuys($lot);
+        }
+
+        $this->persistSellMatchMeta($sellOrder, $matched, $remainder);
+
+        return ['matched_qty' => $matched, 'remainder_qty' => $remainder, 'lot' => $lot];
     }
 
     public function registerPhysicalPurchase(array $data): MetalTreasuryPhysicalPurchase
@@ -501,7 +646,9 @@ class MetalOrderCoverageService
     }
 
     /**
-     * ورود فروش کاربر به خزانه (بدون تخصیص خودکار).
+     * پس از succeed فروش:
+     * - مقدار تطبیق‌شده با خریدهای باز (و هر باقیمانده‌ای که به همکار نرفته) وارد خزانه می‌شود
+     * - مقدار فروخته‌شده به همکار (partner_sell_qty) وارد خزانه نمی‌شود
      */
     public function ingestUserSellOrder(MetalOrder $sellOrder): ?MetalTreasuryLot
     {
@@ -509,34 +656,105 @@ class MetalOrderCoverageService
             return null;
         }
 
-        $key = 'user-sell-in:' . $sellOrder->id;
-
-        $existing = \App\Models\MetalTreasuryMovement::query()
-            ->where('idempotency_key', $key)
-            ->first();
-
-        if ($existing) {
-            return MetalTreasuryLot::query()->find($existing->lot_id);
+        $match = $this->matchUserSellToOpenBuys($sellOrder);
+        $sellQty = $this->ledger->decimal($sellOrder->qty, MetalTreasuryLedgerService::METAL_SCALE, 'qty');
+        $partnerQty = $this->ledger->decimal(
+            (string) (($sellOrder->extra_data['partner_sell_qty'] ?? '0')),
+            MetalTreasuryLedgerService::METAL_SCALE,
+            'partner_sell_qty'
+        );
+        $keepQty = bcsub($sellQty, $partnerQty, MetalTreasuryLedgerService::METAL_SCALE);
+        if (bccomp($keepQty, '0', MetalTreasuryLedgerService::METAL_SCALE) < 0) {
+            $keepQty = '0.000';
         }
 
-        $sellOrder = $this->maturity->ensureOrderSettlement($sellOrder);
-        $maturity = $this->maturity->codeForOrder($sellOrder);
+        $matched = $match['matched_qty'];
+        $remainderKeep = bcsub($keepQty, $matched, MetalTreasuryLedgerService::METAL_SCALE);
+        if (bccomp($remainderKeep, '0', MetalTreasuryLedgerService::METAL_SCALE) < 0) {
+            $remainderKeep = '0.000';
+        }
 
-        return $this->ledger->createLot([
-            'metal_item_id' => $sellOrder->metal_item_id,
-            'maturity_code' => $maturity,
-            'settlement_date' => $sellOrder->settlement_date,
-            'source_type' => MetalTreasurySourceType::USER_WALLET_SELL,
-            'source_id' => $sellOrder->id,
-            'initial_qty' => (string) $sellOrder->qty,
-            'unit_cost' => (string) (int) round((float) $sellOrder->fee),
-            'purchased_at' => $sellOrder->updated_at ?? now(),
-            'metal_order_id' => $sellOrder->id,
-            'reason' => 'user_wallet_sell',
-            'meta' => [
-                'sell_order_tracking_code' => $sellOrder->tracking_code,
-            ],
-        ], $key);
+        $lot = $match['lot'];
+
+        // باقیمانده‌ای که به همکار نرفت → خزانه (مثلاً همکار بسته/ناموفق یا تأیید دستی)
+        if (bccomp($remainderKeep, '0', MetalTreasuryLedgerService::METAL_SCALE) > 0) {
+            $sellOrder = $this->maturity->ensureOrderSettlement($sellOrder);
+            $remainderLot = $this->ledger->createLot([
+                'metal_item_id' => $sellOrder->metal_item_id,
+                'maturity_code' => $this->maturity->codeForOrder($sellOrder),
+                'settlement_date' => $sellOrder->settlement_date,
+                'source_type' => MetalTreasurySourceType::USER_WALLET_SELL,
+                'source_id' => $sellOrder->id,
+                'initial_qty' => $remainderKeep,
+                'unit_cost' => (string) (int) round((float) $sellOrder->fee),
+                'purchased_at' => $sellOrder->updated_at ?? now(),
+                'metal_order_id' => $sellOrder->id,
+                'reason' => 'user_wallet_sell_remainder',
+                'meta' => [
+                    'sell_order_tracking_code' => $sellOrder->tracking_code,
+                    'remainder_kept' => true,
+                ],
+            ], 'user-sell-remainder:' . $sellOrder->id);
+
+            $remainderLot = $this->distributeUserSellLotToOpenBuys($remainderLot);
+            $lot = $lot ?? $remainderLot;
+        }
+
+        return $lot;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, MetalOrder>
+     */
+    private function openBuyCandidatesForSellSource(int $lotMetalItemId, string $lotMaturity)
+    {
+        return MetalOrder::query()
+            ->with('metalItem')
+            ->where('order_type', 'buy')
+            ->where('status', '!=', 'rejected')
+            ->whereIn('coverage_status', MetalCoverageStatus::openStatuses())
+            ->where('open_qty', '>', 0)
+            ->where(function ($q) use ($lotMetalItemId) {
+                $q->where('metal_item_id', $lotMetalItemId)
+                    ->orWhereIn('metal_item_id', function ($sub) use ($lotMetalItemId) {
+                        $sub->select('id')
+                            ->from('metal_items')
+                            ->where('settlement_metal_item_id', $lotMetalItemId);
+                    });
+            })
+            ->orderByRaw('CASE WHEN coverage_deadline IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('coverage_deadline')
+            ->orderBy('id')
+            ->get()
+            ->filter(function (MetalOrder $order) use ($lotMetalItemId, $lotMaturity) {
+                return $this->maturity->isSourceMetalItemAllowed($order, $lotMetalItemId)
+                    && $this->maturity->isSourceAllowed($this->maturity->codeForOrder($order), $lotMaturity);
+            })
+            ->values();
+    }
+
+    private function compatibleOpenBuyDemand(int $metalItemId, string $maturity): string
+    {
+        $demand = '0.000';
+
+        foreach ($this->openBuyCandidatesForSellSource($metalItemId, $maturity) as $order) {
+            $demand = bcadd(
+                $demand,
+                $this->ledger->decimal($order->open_qty, MetalTreasuryLedgerService::METAL_SCALE, 'open_qty'),
+                MetalTreasuryLedgerService::METAL_SCALE
+            );
+        }
+
+        return $demand;
+    }
+
+    private function persistSellMatchMeta(MetalOrder $sellOrder, string $matched, string $remainder): void
+    {
+        $extra = $sellOrder->extra_data ?? [];
+        $extra['matched_to_buys_qty'] = $matched;
+        $extra['sell_remainder_qty'] = $remainder;
+        $sellOrder->extra_data = $extra;
+        $sellOrder->save();
     }
 
     public function reverseAllocation(

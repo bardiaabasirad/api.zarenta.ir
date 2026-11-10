@@ -29,17 +29,15 @@ class CheckStaleMetalOrdersAction
         ])
             ->pluck('option_value', 'option_key');
 
-        if (!($settings['auto_order_dispatch_enabled'] ?? null)) {
-            return;
-        }
-
+        $autoDispatchEnabled = (bool) ($settings['auto_order_dispatch_enabled'] ?? null);
         $manualReviewTimeoutSeconds = (int) ($settings['manual_order_review_duration_seconds'] ?? 0);
-
         $staleThreshold = now()->subSeconds($manualReviewTimeoutSeconds + 2);
 
+        // اگر dispatch همکار خاموش است، فقط خریدها را برای پوشش خزانه پردازش کن.
         MetalOrder::query()
             ->where('status', 'pending')
             ->where('created_at', '<=', $staleThreshold)
+            ->when(! $autoDispatchEnabled, fn ($q) => $q->where('order_type', 'buy'))
             ->select('id')
             ->chunkById(self::CHUNK_SIZE, function ($metalOrders) use ($staleThreshold) {
                 foreach ($metalOrders as $metalOrder) {
@@ -50,10 +48,8 @@ class CheckStaleMetalOrdersAction
 
     private function processOrder(int $metalOrderId, Carbon $staleThreshold): void
     {
-        $service = $this->hamtalaOrderExchangeService;
-
         try {
-            $metalOrder = DB::transaction(function () use ($metalOrderId, $staleThreshold, $service) {
+            $metalOrder = DB::transaction(function () use ($metalOrderId, $staleThreshold) {
                 $metalOrder = MetalOrder::query()
                     ->whereKey($metalOrderId)
                     ->with(['leverageCheck', 'creator'])
@@ -87,21 +83,8 @@ class CheckStaleMetalOrdersAction
                     return null;
                 }
 
-                if ($service->isWeightOutOfRange($metalOrder)) {
-                    Log::channel('checkStaleMetalOrders')->info('Skip stale order: weight out of range', [
-                        'metal_order_id' => $metalOrder->id,
-                    ]);
-
-                    return null;
-                }
-
-                if ($service->isAutoOrderDisabled($metalOrder)) {
-                    Log::channel('checkStaleMetalOrders')->info('Skip stale order: auto order disabled', [
-                        'metal_order_id' => $metalOrder->id,
-                    ]);
-
-                    return null;
-                }
+                // محدودیت وزن/فعال بودن همکار داخل موتور پوشش (خرید) یا submitClaimedSellOrder بررسی می‌شود.
+                // اینجا عمداً skip نمی‌کنیم تا تطبیق خزانه/خریدهای باز همیشه انجام شود.
 
                 if ($metalOrder->created_type == 'metal_trader') {
                     $trader = $metalOrder->creator instanceof MetalTrader
@@ -185,16 +168,17 @@ class CheckStaleMetalOrdersAction
 
     private function submitClaimedOrder(MetalOrder $metalOrder): void
     {
-        // خرید: موتور پوشش خزانه/همکار (کسری باز؛ بدون auto-reject روی شکست همکار)
+        // خرید: اول خزانه، سپس مابقی از همکار (اگر ثبت خودکار باز باشد)
         if ($metalOrder->order_type === 'buy') {
             try {
-                app(\App\Services\Metal\MetalOrderCoverageService::class)
+                $covered = app(\App\Services\Metal\MetalOrderCoverageService::class)
                     ->coverBuyOrder($metalOrder, 'stale-cover:' . $metalOrder->id, true);
 
                 Log::channel('checkStaleMetalOrders')->info('Buy order coverage attempted', [
                     'metal_order_id' => $metalOrder->id,
-                    'coverage_status' => $metalOrder->fresh()->coverage_status,
-                    'open_qty' => $metalOrder->fresh()->open_qty,
+                    'coverage_status' => $covered->coverage_status,
+                    'covered_qty' => $covered->covered_qty,
+                    'open_qty' => $covered->open_qty,
                 ]);
             } catch (\Throwable $e) {
                 Log::channel('checkStaleMetalOrders')->error('Coverage engine failed', [
@@ -220,15 +204,70 @@ class CheckStaleMetalOrdersAction
             return;
         }
 
+        // فروش: اول تخصیص به خریدهای باز، سپس مابقی به همکار (بدون ورود آن مابقی به خزانه)
+        $this->submitClaimedSellOrder($metalOrder);
+    }
+
+    private function submitClaimedSellOrder(MetalOrder $metalOrder): void
+    {
+        $coverage = app(\App\Services\Metal\MetalOrderCoverageService::class);
         $service = $this->hamtalaOrderExchangeService;
 
         try {
-            $result = $service->submitAutoOrder($metalOrder);
+            $match = $coverage->matchUserSellToOpenBuys($metalOrder->fresh());
+            $matchedQty = (string) $match['matched_qty'];
+            $remainderQty = (string) $match['remainder_qty'];
+
+            Log::channel('checkStaleMetalOrders')->info('Sell matched to open buys', [
+                'metal_order_id' => $metalOrder->id,
+                'matched_qty' => $matchedQty,
+                'remainder_qty' => $remainderQty,
+            ]);
+
+            if (bccomp($remainderQty, '0', 3) <= 0) {
+                MetalOrderService::markAsSucceedAndUpdateStock(
+                    $metalOrder->fresh(),
+                    ['succeed_at' => Carbon::now()]
+                );
+
+                return;
+            }
+
+            // مابقی → همکار (اگر باز باشد)
+            $remainderProbe = $metalOrder->fresh();
+            $remainderProbe->qty = $remainderQty;
+            if ($service->isAutoOrderDisabled($metalOrder) || $service->isWeightOutOfRange($remainderProbe)) {
+                // همکار در دسترس نیست / وزن مابقی خارج از بازه → مابقی در خزانه می‌ماند
+                MetalOrderService::markAsSucceedAndUpdateStock(
+                    $metalOrder->fresh(),
+                    ['succeed_at' => Carbon::now()]
+                );
+
+                return;
+            }
+
+            $order = $metalOrder->fresh();
+            $extra = $order->extra_data ?? [];
+            $extra['matched_to_buys_qty'] = $matchedQty;
+            $extra['sell_remainder_qty'] = $remainderQty;
+            $extra['partner_sell_qty'] = $remainderQty;
+            $extra['auto_order_quantity'] = (float) $remainderQty;
+            $order->extra_data = $extra;
+            $order->save();
+
+            $result = $service->submitAutoOrder($order->fresh());
 
             if ($result['status'] === 'skipped') {
-                if ($result['success']) {
+                // should_confirm / محدودیت وزن: مابقی را نگه می‌داریم (بدون partner_sell_qty)
+                $order = $order->fresh();
+                $extra = $order->extra_data ?? [];
+                unset($extra['partner_sell_qty']);
+                $order->extra_data = $extra;
+                $order->save();
+
+                if ($result['success'] || bccomp($matchedQty, '0', 3) > 0) {
                     MetalOrderService::markAsSucceedAndUpdateStock(
-                        $metalOrder,
+                        $order->fresh(),
                         ['succeed_at' => Carbon::now()]
                     );
                 }
@@ -240,26 +279,58 @@ class CheckStaleMetalOrdersAction
                 return;
             }
 
-            Log::channel('checkStaleMetalOrders')->warning('Auto order rejected', [
+            Log::channel('checkStaleMetalOrders')->warning('Sell partner submit failed; keeping remainder in treasury', [
                 'metal_order_id' => $metalOrder->id,
-                'status'         => $result['status'],
-                'reason'         => $result['reason'],
+                'status' => $result['status'],
+                'reason' => $result['reason'],
             ]);
 
-            MetalOrderService::markAsRejected($metalOrder, [
-                'cause'       => $result['reason'],
-                'message'     => 'تغییر مظنه',
+            // اگر بخشی تطبیق شده، کل فروش را reject نکن — مابقی وارد خزانه می‌شود
+            $order = $order->fresh();
+            $extra = $order->extra_data ?? [];
+            unset($extra['partner_sell_qty']);
+            $order->extra_data = $extra;
+            $order->save();
+
+            if (bccomp($matchedQty, '0', 3) > 0) {
+                MetalOrderService::markAsSucceedAndUpdateStock(
+                    $order->fresh(),
+                    ['succeed_at' => Carbon::now()]
+                );
+
+                return;
+            }
+
+            MetalOrderService::markAsRejected($order->fresh(), [
+                'cause' => $result['reason'],
+                'message' => 'تغییر مظنه',
                 'rejected_at' => Carbon::now(),
             ]);
         } catch (\Throwable $e) {
-            Log::channel('checkStaleMetalOrders')->error('Hamtala submit failed', [
+            Log::channel('checkStaleMetalOrders')->error('Sell coverage/partner failed', [
                 'metal_order_id' => $metalOrder->id,
-                'message'        => $e->getMessage(),
+                'message' => $e->getMessage(),
             ]);
 
-            MetalOrderService::markAsRejected($metalOrder, [
-                'cause'       => 'system_error',
-                'message'     => 'خطای سیستمی',
+            $order = $metalOrder->fresh();
+            $matchedQty = (string) (($order->extra_data['matched_to_buys_qty'] ?? '0'));
+            $extra = $order->extra_data ?? [];
+            unset($extra['partner_sell_qty']);
+            $order->extra_data = $extra;
+            $order->save();
+
+            if (bccomp($matchedQty, '0', 3) > 0) {
+                MetalOrderService::markAsSucceedAndUpdateStock(
+                    $order->fresh(),
+                    ['succeed_at' => Carbon::now()]
+                );
+
+                return;
+            }
+
+            MetalOrderService::markAsRejected($order->fresh(), [
+                'cause' => 'system_error',
+                'message' => 'خطای سیستمی',
                 'rejected_at' => Carbon::now(),
             ]);
         }

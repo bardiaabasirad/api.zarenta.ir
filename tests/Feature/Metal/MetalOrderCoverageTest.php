@@ -106,6 +106,27 @@ it('creates open deficit when treasury is empty and partner is skipped', functio
         ->and($order->status)->not->toBe('rejected');
 });
 
+it('leaves remainder open after partial treasury when partner is not attempted', function () {
+    $item = coverageMetalItem(0);
+    $ledger = app(MetalTreasuryLedgerService::class);
+    $coverage = app(MetalOrderCoverageService::class);
+
+    $ledger->createLot([
+        'metal_item_id' => $item->id,
+        'maturity_code' => MetalMaturity::T0,
+        'source_type' => MetalTreasurySourceType::PHYSICAL_PURCHASE,
+        'initial_qty' => '3.000',
+        'unit_cost' => '4800000',
+    ], 'cov-partial-then-partner-skip');
+
+    $order = coverageBuyOrder($item, '10.000');
+    $order = $coverage->coverBuyOrder($order, 'test-partial-no-partner', false);
+
+    expect($order->coverage_status)->toBe(MetalCoverageStatus::PARTIALLY_COVERED)
+        ->and($order->covered_qty)->toBe('3.000')
+        ->and($order->open_qty)->toBe('7.000');
+});
+
 it('partially covers and leaves open qty', function () {
     $item = coverageMetalItem(0);
     $ledger = app(MetalTreasuryLedgerService::class);
@@ -238,6 +259,98 @@ it('covers T1 commitment order from settlement spot T0 inventory', function () {
         ->and($order->open_qty)->toBe('0.000')
         ->and(MetalOrderCoverageAllocation::where('metal_order_id', $order->id)->value('lot_id'))
         ->not->toBeNull();
+});
+
+it('auto-allocates user sell to open T2 buy; unmatched remainder stays in treasury when not sold to partner', function () {
+    $item = coverageMetalItem(2);
+    $coverage = app(MetalOrderCoverageService::class);
+
+    $buy = coverageBuyOrder($item, '1.000', '5000000');
+    $buy = $coverage->coverBuyOrder($buy, 'test-t2-buy-open', false);
+
+    expect($buy->coverage_status)->toBe(MetalCoverageStatus::UNCOVERED)
+        ->and($buy->open_qty)->toBe('1.000');
+
+    $sell = MetalOrder::create([
+        'tracking_code' => random_int(1000000000, 9999999999),
+        'metal_item_id' => $item->id,
+        'product_name' => $item->title,
+        'qty' => '2.000',
+        'unit' => 'gram',
+        'fee' => '4900000',
+        'amount' => 9800000,
+        'created_id' => 1,
+        'created_type' => 'metal_trader',
+        'status' => 'succeed',
+        'order_type' => 'sell',
+        'settlement_date' => now()->addDays(2)->toDateString(),
+        'settlement_status' => 'pending',
+        'extra_data' => [],
+    ]);
+
+    $lot = $coverage->ingestUserSellOrder($sell);
+
+    expect($buy->fresh()->coverage_status)->toBe(MetalCoverageStatus::FULLY_COVERED)
+        ->and($buy->fresh()->covered_qty)->toBe('1.000')
+        ->and($buy->fresh()->open_qty)->toBe('0.000');
+
+    $alloc = MetalOrderCoverageAllocation::where('metal_order_id', $buy->id)->first();
+    expect($alloc)->not->toBeNull()
+        ->and($alloc->source_type)->toBe(MetalTreasurySourceType::USER_WALLET_SELL)
+        ->and($alloc->qty)->toBe('1.000');
+
+    // لات تطبیق‌شده مصرف شده؛ مابقی در لات جداگانه خزانه می‌ماند (چون به همکار فروخته نشده)
+    $remainderLot = \App\Models\MetalTreasuryLot::query()
+        ->where('source_type', MetalTreasurySourceType::USER_WALLET_SELL)
+        ->where('source_id', $sell->id)
+        ->where('remaining_qty', '>', 0)
+        ->first();
+
+    expect($remainderLot)->not->toBeNull()
+        ->and($remainderLot->maturity_code)->toBe(MetalMaturity::T2)
+        ->and($remainderLot->remaining_qty)->toBe('1.000')
+        ->and($lot)->not->toBeNull();
+});
+
+it('does not put partner-sold sell remainder into treasury', function () {
+    $item = coverageMetalItem(2);
+    $coverage = app(MetalOrderCoverageService::class);
+
+    $buy = coverageBuyOrder($item, '1.000', '5000000');
+    $coverage->coverBuyOrder($buy, 'test-t2-buy-partner-skip', false);
+
+    $sell = MetalOrder::create([
+        'tracking_code' => random_int(1000000000, 9999999999),
+        'metal_item_id' => $item->id,
+        'product_name' => $item->title,
+        'qty' => '2.000',
+        'unit' => 'gram',
+        'fee' => '4900000',
+        'amount' => 9800000,
+        'created_id' => 1,
+        'created_type' => 'metal_trader',
+        'status' => 'succeed',
+        'order_type' => 'sell',
+        'settlement_date' => now()->addDays(2)->toDateString(),
+        'settlement_status' => 'pending',
+        'extra_data' => [
+            'matched_to_buys_qty' => '1.000',
+            'partner_sell_qty' => '1.000',
+            'auto_order_quantity' => 1.0,
+        ],
+    ]);
+
+    $coverage->ingestUserSellOrder($sell);
+
+    $lots = \App\Models\MetalTreasuryLot::query()
+        ->where('source_type', MetalTreasurySourceType::USER_WALLET_SELL)
+        ->where('source_id', $sell->id)
+        ->get();
+
+    expect($lots)->toHaveCount(1)
+        ->and($lots->first()->initial_qty)->toBe('1.000')
+        ->and($lots->sum(fn ($l) => (float) $l->initial_qty))->toBe(1.0)
+        ->and($buy->fresh()->coverage_status)->toBe(MetalCoverageStatus::FULLY_COVERED);
 });
 
 it('requires sale rate and records pnl when traditionally exiting user-sell lot', function () {

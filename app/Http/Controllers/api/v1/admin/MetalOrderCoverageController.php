@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\MetalOrder;
 use App\Models\MetalTreasuryLot;
 use App\Models\SelectedMetalPrice;
+use App\Models\Setting;
 use App\Services\Metal\MetalMaturityService;
 use App\Services\Metal\MetalOrderCoverageService;
 use App\Services\Metal\MetalPartnerCoverageService;
@@ -92,7 +93,19 @@ class MetalOrderCoverageController extends Controller
             return $this->presentOpenOrderRow($order);
         });
 
-        return response()->json(['data' => $data]);
+        $t0CoverSettings = Setting::query()
+            ->whereIn('option_key', [
+                MetalMaturityService::SETTING_ALLOW_T0_COVER_T1,
+                MetalMaturityService::SETTING_ALLOW_T0_COVER_T2,
+            ])
+            ->get()
+            ->keyBy('option_key');
+
+        return response()->json([
+            'data' => $data,
+            'allow_t0_cover_t1' => $t0CoverSettings->get(MetalMaturityService::SETTING_ALLOW_T0_COVER_T1),
+            'allow_t0_cover_t2' => $t0CoverSettings->get(MetalMaturityService::SETTING_ALLOW_T0_COVER_T2),
+        ]);
     }
 
     public function show(MetalOrder $order): JsonResponse

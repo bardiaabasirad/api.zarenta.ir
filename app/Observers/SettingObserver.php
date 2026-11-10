@@ -41,6 +41,9 @@ class SettingObserver
         } elseif ($setting->option_key == 'auto_order_dispatch_enabled') {
             Cache::forget('settings.auto_order_dispatch_enabled');
             SettingsChanged::dispatch();
+        } elseif (in_array($setting->option_key, ['allow_t0_cover_t1', 'allow_t0_cover_t2'], true)) {
+            Cache::forget('settings.' . $setting->option_key);
+            SettingsChanged::dispatch();
         } elseif ($setting->option_key == 'validity_period_of_melted_order_before_expires') {
             Cache::forget('setting:validity_period_of_melted_order_before_expires');
         } elseif ($setting->option_key == 'submit_outbound_gold_orders_by_bot') {

@@ -169,10 +169,65 @@ it('does not use T2 inventory for T1 orders', function () {
         ->and($order->coverage_status)->toBe(MetalCoverageStatus::UNCOVERED);
 });
 
-it('uses T0 for T1 when T1 inventory is insufficient', function () {
+it('does not use T0 for T1 when operator toggle is off', function () {
     $item = coverageMetalItem(1);
     $ledger = app(MetalTreasuryLedgerService::class);
     $coverage = app(MetalOrderCoverageService::class);
+
+    \App\Models\Setting::query()->firstOrNew(['option_key' => \App\Services\Metal\MetalMaturityService::SETTING_ALLOW_T0_COVER_T1])
+        ->forceFill(['option_name' => 'allow_t0_cover_t1', 'option_value' => '0'])
+        ->save();
+    \Illuminate\Support\Facades\Cache::forget('settings.' . \App\Services\Metal\MetalMaturityService::SETTING_ALLOW_T0_COVER_T1);
+
+    $ledger->createLot([
+        'metal_item_id' => $item->id,
+        'maturity_code' => MetalMaturity::T0,
+        'source_type' => MetalTreasurySourceType::PHYSICAL_PURCHASE,
+        'initial_qty' => '10.000',
+        'unit_cost' => '4700000',
+    ], 'cov-t0-blocked-t1');
+
+    $order = coverageBuyOrder($item, '5.000');
+    $order = $coverage->coverBuyOrder($order, 'test-t0-blocked-t1', false);
+
+    expect($order->covered_qty)->toBe('0.000')
+        ->and($order->coverage_status)->toBe(MetalCoverageStatus::UNCOVERED);
+});
+
+it('does not use T0 for T2 when operator toggle is off', function () {
+    $item = coverageMetalItem(2);
+    $ledger = app(MetalTreasuryLedgerService::class);
+    $coverage = app(MetalOrderCoverageService::class);
+
+    \App\Models\Setting::query()->firstOrNew(['option_key' => \App\Services\Metal\MetalMaturityService::SETTING_ALLOW_T0_COVER_T2])
+        ->forceFill(['option_name' => 'allow_t0_cover_t2', 'option_value' => '0'])
+        ->save();
+    \Illuminate\Support\Facades\Cache::forget('settings.' . \App\Services\Metal\MetalMaturityService::SETTING_ALLOW_T0_COVER_T2);
+
+    $ledger->createLot([
+        'metal_item_id' => $item->id,
+        'maturity_code' => MetalMaturity::T0,
+        'source_type' => MetalTreasurySourceType::PHYSICAL_PURCHASE,
+        'initial_qty' => '10.000',
+        'unit_cost' => '4700000',
+    ], 'cov-t0-blocked-t2');
+
+    $order = coverageBuyOrder($item, '5.000');
+    $order = $coverage->coverBuyOrder($order, 'test-t0-blocked-t2', false);
+
+    expect($order->covered_qty)->toBe('0.000')
+        ->and($order->coverage_status)->toBe(MetalCoverageStatus::UNCOVERED);
+});
+
+it('uses T0 for T1 when T1 inventory is insufficient and toggle is on', function () {
+    $item = coverageMetalItem(1);
+    $ledger = app(MetalTreasuryLedgerService::class);
+    $coverage = app(MetalOrderCoverageService::class);
+
+    \App\Models\Setting::query()->firstOrNew(['option_key' => \App\Services\Metal\MetalMaturityService::SETTING_ALLOW_T0_COVER_T1])
+        ->forceFill(['option_name' => 'allow_t0_cover_t1', 'option_value' => '1'])
+        ->save();
+    \Illuminate\Support\Facades\Cache::forget('settings.' . \App\Services\Metal\MetalMaturityService::SETTING_ALLOW_T0_COVER_T1);
 
     $ledger->createLot([
         'metal_item_id' => $item->id,
@@ -243,6 +298,11 @@ it('covers T1 commitment order from settlement spot T0 inventory', function () {
     $t1 = coverageMetalItem(1, $spot->id);
     $ledger = app(MetalTreasuryLedgerService::class);
     $coverage = app(MetalOrderCoverageService::class);
+
+    \App\Models\Setting::query()->firstOrNew(['option_key' => \App\Services\Metal\MetalMaturityService::SETTING_ALLOW_T0_COVER_T1])
+        ->forceFill(['option_name' => 'allow_t0_cover_t1', 'option_value' => '1'])
+        ->save();
+    \Illuminate\Support\Facades\Cache::forget('settings.' . \App\Services\Metal\MetalMaturityService::SETTING_ALLOW_T0_COVER_T1);
 
     $ledger->createLot([
         'metal_item_id' => $spot->id,

@@ -5,12 +5,18 @@ namespace App\Services\Metal;
 use App\Constants\MetalMaturity;
 use App\Models\MetalItem;
 use App\Models\MetalOrder;
+use App\Models\Setting;
 use App\Services\MarketHolidayService;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Cache;
+use Throwable;
 
 class MetalMaturityService
 {
+    public const SETTING_ALLOW_T0_COVER_T1 = 'allow_t0_cover_t1';
+    public const SETTING_ALLOW_T0_COVER_T2 = 'allow_t0_cover_t2';
+
     public function codeForMetalItem(MetalItem $metalItem): string
     {
         return MetalMaturity::fromWorkingDays((int) $metalItem->settlement_working_days);
@@ -83,7 +89,49 @@ class MetalMaturityService
      */
     public function allowedSourceMaturities(string $orderMaturity): array
     {
-        return MetalMaturity::allowedSourceMaturities($orderMaturity);
+        $allowed = MetalMaturity::allowedSourceMaturities($orderMaturity);
+
+        if (
+            $orderMaturity === MetalMaturity::T1
+            && $this->isSettingEnabled(self::SETTING_ALLOW_T0_COVER_T1)
+        ) {
+            $allowed[] = MetalMaturity::T0;
+        }
+
+        if (
+            $orderMaturity === MetalMaturity::T2
+            && $this->isSettingEnabled(self::SETTING_ALLOW_T0_COVER_T2)
+        ) {
+            $allowed[] = MetalMaturity::T0;
+        }
+
+        return array_values(array_unique($allowed));
+    }
+
+    public function coveragePriority(string $orderMaturity): array
+    {
+        return $this->allowedSourceMaturities($orderMaturity);
+    }
+
+    public function isSettingEnabled(string $optionKey): bool
+    {
+        try {
+            $raw = Cache::remember(
+                'settings.' . $optionKey,
+                300,
+                fn () => Setting::query()->where('option_key', $optionKey)->value('option_value')
+            );
+        } catch (Throwable $e) {
+            return false;
+        }
+
+        if ($raw === null) {
+            return false;
+        }
+
+        $v = strtolower(trim((string) $raw));
+
+        return in_array($v, ['1', 'true', 'on', 'yes'], true);
     }
 
     /**

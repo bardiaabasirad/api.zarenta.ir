@@ -23,7 +23,9 @@ class MetalMaturity
     }
 
     /**
-     * سررسیدهای مجاز منبع برای پوشش یک سفارش با سررسید مشخص.
+     * سررسیدهای پایه مجاز منبع (بدون تخصیص اختیاری T0).
+     * T0→T1 و T0→T2 فقط وقتی اپراتور سوییچ مربوطه را روشن کند
+     * از طریق MetalMaturityService اضافه می‌شوند.
      * استفاده از سررسید دیرتر برای سفارش زودتر ممنوع است.
      *
      * @return list<string>
@@ -32,14 +34,14 @@ class MetalMaturity
     {
         return match ($orderMaturity) {
             self::T0 => [self::T0],
-            self::T1 => [self::T1, self::T0],
-            self::T2 => [self::T2, self::T1, self::T0],
+            self::T1 => [self::T1],
+            self::T2 => [self::T2, self::T1],
             default => [self::T0],
         };
     }
 
     /**
-     * اولویت مصرف: اول همان سررسید سفارش، سپس سررسیدهای زودتر.
+     * اولویت مصرف پایه: اول همان سررسید سفارش، سپس سررسیدهای زودتر مجاز.
      *
      * @return list<string>
      */

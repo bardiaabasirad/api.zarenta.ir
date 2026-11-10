@@ -55,7 +55,9 @@ class SettingsChanged implements ShouldBroadcastNow
             'manual_order_review_duration_seconds',
             'melted_stock_quantity',
             'min_melted_stock_quantity',
-            'max_melted_stock_quantity'
+            'max_melted_stock_quantity',
+            'allow_t0_cover_t1',
+            'allow_t0_cover_t2',
         ])->get()->keyBy('option_key');
 
         $generalKeys = [
@@ -111,6 +113,8 @@ class SettingsChanged implements ShouldBroadcastNow
             'metal_items' => $metalItems,
             'metal_item_auto_order_settings' => MetalItemAutoOrderSetting::with(['metalItem','priceSource'])->get(),
             'auto_order_dispatch_enabled' => $allSettings->get('auto_order_dispatch_enabled'),
+            'allow_t0_cover_t1' => $allSettings->get('allow_t0_cover_t1'),
+            'allow_t0_cover_t2' => $allSettings->get('allow_t0_cover_t2'),
             'contacts' => $contacts,
             'latest_raw_price_from_selected_source' => $latestRawPriceFromSelectedSource,
             'market_status' => $allSettings->get('market_status'),

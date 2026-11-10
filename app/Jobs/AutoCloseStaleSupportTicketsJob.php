@@ -11,6 +11,12 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * هر ساعت اجرا می‌شود و تیکت‌های پشتیبانی باز را که بیش از ۷ روز بدون پیام مانده‌اند
+ * به‌صورت خودکار می‌بندد (AUTO_CLOSED).
+ * اگر last_message_at خالی باشد، از created_at برای محاسبهٔ آن ۷ روز استفاده می‌شود.
+ * با قفل کش از اجرای موازی تکراری در یک روز جلوگیری می‌کند.
+ */
 class AutoCloseStaleSupportTicketsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;

@@ -11,6 +11,12 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * هر روز ساعت ۰۰:۰۵ (تهران) اجرا می‌شود و سفارش‌های خرید فلز باز را که
+ * پوشش کامل نشده‌اند (UNCOVERED / PARTIALLY_COVERED) ولی coverage_deadline شان
+ * گذشته و open_qty دارند، به وضعیت OVERDUE (سررسیدگذشته) علامت می‌زند.
+ * این وضعیت هشدار عملیاتی است و سفارش را لغو نمی‌کند؛ تا پوشش کامل حفظ می‌شود.
+ */
 class MarkOverdueMetalOrderCoveragesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;

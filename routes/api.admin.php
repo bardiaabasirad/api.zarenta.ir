@@ -28,6 +28,7 @@ use App\Http\Controllers\api\v1\admin\DirectoryController;
 use App\Http\Controllers\api\v1\admin\MetalOrderController;
 use App\Http\Controllers\api\v1\admin\MetalOrderCoverageController;
 use App\Http\Controllers\api\v1\admin\MetalPhysicalDeliveryController;
+use App\Http\Controllers\api\v1\admin\MetalSettlementCaseController;
 use App\Http\Controllers\api\v1\admin\MetalTraderBankAccountController;
 use App\Http\Controllers\api\v1\admin\MetalTraderFiatWithdrawalController;
 use App\Http\Controllers\api\v1\admin\InquiryController;
@@ -125,6 +126,18 @@ Route::prefix('v1/admin')
             Route::post('/', [AccountingController::class, 'store']);
             Route::get('/transactions', [AccountingController::class, 'transactions']);
             Route::get('/transactions/pdf', [AccountingController::class, 'transactionsToPDF']);
+        });
+
+        // Settlement fulfillment cases (post T1→T0 obligations)
+        Route::prefix('metal-settlement-cases')->group(function () {
+            Route::get('/', [MetalSettlementCaseController::class, 'index']);
+            Route::get('{settlementCase}', [MetalSettlementCaseController::class, 'show']);
+            Route::post('{settlementCase}/deposits', [MetalSettlementCaseController::class, 'deposit']);
+            Route::post('{settlementCase}/metal-deliveries', [MetalSettlementCaseController::class, 'metalDelivery']);
+            Route::post('{settlementCase}/fulfill', [MetalSettlementCaseController::class, 'fulfill']);
+            Route::get('{settlementCase}/default/preview', [MetalSettlementCaseController::class, 'defaultPreview']);
+            Route::post('{settlementCase}/default', [MetalSettlementCaseController::class, 'defaultExecute']);
+            Route::post('{settlementCase}/default/partner', [MetalSettlementCaseController::class, 'partnerDefault']);
         });
         // Metal orders
         Route::prefix('metal-orders')->group(function () {

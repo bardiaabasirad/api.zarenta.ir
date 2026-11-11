@@ -27,6 +27,7 @@ class WalletTransaction extends Model
             'fiat_credit_in',
             'settlement_fiat_transfer',
             'penalty_loss',
+            'settlement_correction_fiat',
         ];
     }
 
@@ -77,5 +78,10 @@ class WalletTransaction extends Model
     public function metalOrder()
     {
         return $this->belongsTo(MetalOrder::class, 'metal_order_id');
+    }
+
+    public function settlementCase()
+    {
+        return $this->belongsTo(MetalSettlementCase::class, 'metal_settlement_case_id');
     }
 }

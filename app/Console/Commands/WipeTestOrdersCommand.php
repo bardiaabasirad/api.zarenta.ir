@@ -33,6 +33,9 @@ class WipeTestOrdersCommand extends Command
         'metal_order_logs',
         'metal_order_leverage_checks',
         'metal_order_collaterals',
+        // تعهدات سررسید (باید قبل از metal_orders پاک شوند)
+        'metal_settlement_case_order',
+        'metal_settlement_cases',
         'metal_orders',
         'order_items',
         'order_logs',
@@ -178,9 +181,11 @@ class WipeTestOrdersCommand extends Command
         }
 
         if ($keepWallets && Schema::hasTable('wallet_transactions')) {
-            $counts['wallet_transactions (order-linked)'] = (int) DB::table('wallet_transactions')
-                ->whereNotNull('metal_order_id')
-                ->count();
+            $counts['wallet_transactions (order/settlement-linked)'] = (int) $this->orderOrSettlementLinkedWalletQuery()->count();
+        }
+
+        if (Schema::hasTable('metal_settlement_cases')) {
+            $counts['metal_settlement_cases'] = (int) DB::table('metal_settlement_cases')->count();
         }
 
         if (Schema::hasTable('metal_trader_wallets')) {
@@ -268,15 +273,44 @@ class WipeTestOrdersCommand extends Command
         }
 
         // ابتدا ارجاعات self-FK را باز کنیم تا حذف امن باشد
-        DB::table('wallet_transactions')
-            ->whereNotNull('metal_order_id')
+        $this->orderOrSettlementLinkedWalletQuery()
             ->update(['related_transaction_id' => null]);
 
-        $deleted = DB::table('wallet_transactions')
-            ->whereNotNull('metal_order_id')
-            ->delete();
+        $deleted = $this->orderOrSettlementLinkedWalletQuery()->delete();
 
-        $this->line("cleared: {$deleted} order-linked wallet_transactions");
+        $this->line("cleared: {$deleted} order/settlement-linked wallet_transactions");
+    }
+
+    /**
+     * تراکنش‌های وابسته به سفارش فلزی یا پرونده سررسید / انواع لجر معاملاتی.
+     * deposit و withdraw دستی نگه داشته می‌شوند.
+     */
+    private function orderOrSettlementLinkedWalletQuery()
+    {
+        $query = DB::table('wallet_transactions')->where(function ($q) {
+            $q->whereNotNull('metal_order_id')
+                ->orWhereIn('type', [
+                    'metal_commitment_in',
+                    'metal_commitment_out',
+                    'settlement_metal_in',
+                    'settlement_metal_out',
+                    'fiat_debt_in',
+                    'fiat_credit_in',
+                    'settlement_fiat_transfer',
+                    'settlement_correction_metal',
+                    'settlement_correction_fiat',
+                    'settlement_delivery_in',
+                    'penalty_loss',
+                    'block_collateral',
+                    'unblock_collateral',
+                ]);
+
+            if (Schema::hasColumn('wallet_transactions', 'metal_settlement_case_id')) {
+                $q->orWhereNotNull('metal_settlement_case_id');
+            }
+        });
+
+        return $query;
     }
 
     private function zeroBlockedBalances(): void
@@ -303,8 +337,10 @@ class WipeTestOrdersCommand extends Command
             ->whereIn('subject_type', [
                 'order',
                 'metal_order',
+                'metal_settlement_case',
                 Order::class,
                 \App\Models\MetalOrder::class,
+                \App\Models\MetalSettlementCase::class,
             ])
             ->delete();
 

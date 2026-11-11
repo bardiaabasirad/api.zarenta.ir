@@ -163,7 +163,7 @@ class AssetService
                     'available_balance' => $cashAfter,
                 ])->save();
 
-                // نقد حاضر همان لحظه تسویه شده است؛ نباید وارد مسیر تسویه تعهدی شود
+                // نقد حاضر از نظر سررسید همان لحظه settled است؛ اگر کیف منفی شد وارد تعهدات سررسید می‌شود
                 if ($order->settlement_status !== 'settled') {
                     $order->forceFill(['settlement_status' => 'settled'])->save();
                 }
@@ -193,6 +193,8 @@ class AssetService
                         $order->getKey()
                     ),
                 ]);
+
+                app(SettlementFulfillmentService::class)->openCaseForSpotOrder($order->fresh());
             } else {
                 $fiatBefore = self::decimal($wallet->fiat_balance ?? '0', self::FIAT_SCALE, 'fiat_balance');
                 $fiatAfter  = bcadd($fiatBefore, $fiatDelta, self::FIAT_SCALE);

@@ -164,4 +164,14 @@ class MetalOrder extends Model
     {
         return $this->hasMany(MetalOrderCoverageAttempt::class);
     }
+
+    public function settlementCases()
+    {
+        return $this->belongsToMany(
+            MetalSettlementCase::class,
+            'metal_settlement_case_order',
+            'metal_order_id',
+            'metal_settlement_case_id'
+        )->withTimestamps();
+    }
 }

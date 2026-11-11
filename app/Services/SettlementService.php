@@ -340,6 +340,17 @@ class SettlementService
             // ۶. آپدیت وضعیت سفارش‌های سررسیدشده
             MetalOrder::whereIn('id', $orders->pluck('id'))
                 ->update(['settlement_status' => 'settled']);
+
+            // ۷. اگر پس از انتقال، کیف نقد یا فلز اسپات منفی شد، پرونده تعهد سررسید باز می‌شود
+            app(SettlementFulfillmentService::class)->openCaseIfNeeded(
+                traderId: $traderId,
+                commitmentMetalItemId: $commitmentMetalItemId,
+                spotMetalItemId: $spotItemId,
+                settlementDate: $settlementDate,
+                orders: $orders,
+                netMetal: $netMetal,
+                netFiat: $netFiat,
+            );
         });
     }
 

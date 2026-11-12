@@ -13,6 +13,7 @@ use App\Models\MetalItem;
 use App\Models\MetalTrader;
 use App\Models\MetalTraderLead;
 use App\Models\MetalTraderLog;
+use App\Models\MetalTraderWallet;
 use App\Models\Setting;
 use App\Models\VerificationCode;
 use App\Services\MetalTraderService;
@@ -228,6 +229,42 @@ class MetalTraderController extends Controller
             'latest_verification_code' => $latestVerificationCode,
             'dealing_groups' => DealingGroup::select('id', 'name')->get(),
             'block_reasons' => BlockReason::where('type','clients')->get(),
+        ]);
+    }
+
+    public function assets(MetalTrader $metal_trader)
+    {
+        $groupedAssets = MetalTraderWallet::query()
+            ->where('metal_trader_wallets.metal_trader_id', $metal_trader->id)
+            ->leftJoin('metal_items', 'metal_trader_wallets.metal_item_id', '=', 'metal_items.id')
+            ->with([
+                'metalItem' => function ($query) {
+                    $query->withoutGlobalScopes()
+                        ->select(['id', 'title', 'unit', 'is_spot', 'metal_item_group_id', 'sort_order']);
+                },
+            ])
+            ->select('metal_trader_wallets.*')
+            ->orderByRaw("
+                CASE
+                    WHEN metal_trader_wallets.metal_item_id IS NULL THEN 1
+                    WHEN metal_items.is_spot = 1 THEN 2
+                    ELSE 3
+                END ASC
+            ")
+            ->orderBy('metal_items.metal_item_group_id', 'asc')
+            ->orderBy('metal_items.sort_order', 'asc')
+            ->get()
+            ->groupBy(function ($wallet) {
+                return ($wallet->metal_item_id === null || $wallet->metalItem?->is_spot)
+                    ? 'spot_and_cash'
+                    : 'forward_items';
+            });
+
+        return response()->json([
+            'assets' => [
+                'spot_and_cash' => ($groupedAssets->get('spot_and_cash') ?? collect())->values(),
+                'forward_items' => ($groupedAssets->get('forward_items') ?? collect())->values(),
+            ],
         ]);
     }
 

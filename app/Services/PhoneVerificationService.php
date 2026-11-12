@@ -15,10 +15,13 @@ class PhoneVerificationService
 
     public static function isCodeSentRecently($type, $phone)
     {
+        $phone = getPhone($phone);
+
         $latestVerificationCode = VerificationCode::where('phone', $phone)
             ->where('authenticatable_type', $type)
             ->where('created_at', '>=', now()->subMinutes(config('app.code_interval')))
             ->whereNull('verified_at')
+            ->where('expired_at', '>=', now())
             ->latest()
             ->first();
 
@@ -39,10 +42,15 @@ class PhoneVerificationService
         $phone,
         $pattern = ''
     ): void {
-        // TEMP bypass for manual QA — delete this block when done
-        $skipSmsForTest = in_array((string) $phone, ['9382126008', '09382126008'], true);
+        $phone = getPhone($phone);
+        $code = (string) self::generateRandomCode();
 
-        $code = $skipSmsForTest ? 123456 : self::generateRandomCode();
+        // Invalidate previous unused codes so verify always checks the latest one.
+        VerificationCode::query()
+            ->where('phone', $phone)
+            ->where('authenticatable_type', $type)
+            ->whereNull('verified_at')
+            ->update(['expired_at' => now()]);
 
         VerificationCode::create([
             'phone' => $phone,
@@ -54,12 +62,12 @@ class PhoneVerificationService
             ),
         ]);
 
-        if (App::environment('production') && ! $skipSmsForTest) {
+        if (App::environment('production')) {
             SmsJob::dispatch(
                 $phone,
                 $pattern,
                 [
-                    'CODE' => (string) $code,
+                    'CODE' => $code,
                 ]
             )->onConnection('sync');
         }
@@ -86,9 +94,7 @@ class PhoneVerificationService
                 return null;
             }
 
-            $isValid = (string) $verificationCode->code == $code;
-
-            if ($isValid) {
+            if ($verificationCode->code == $code) {
                 return $verificationCode;
             }
 

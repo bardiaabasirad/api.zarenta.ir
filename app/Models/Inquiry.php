@@ -15,9 +15,4 @@ class Inquiry extends Model
         'fields' => 'array',
         'response' => 'array',
     ];
-
-    public function metalTraders()
-    {
-        return $this->belongsToMany(MetalTrader::class);
-    }
 }

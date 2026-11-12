@@ -15,6 +15,7 @@ class WipeMetalTraderCommand extends Command
 {
     protected $signature = 'app:wipe-metal-trader
                             {trader? : شناسه تریدر}
+                            {--all : حذف همه تریدرها و داده‌های وابسته}
                             {--phone= : پیدا کردن تریدر با شماره تلفن}
                             {--name= : پیدا کردن تریدر با نام دقیق}
                             {--name-like= : پیدا کردن تریدر با LIKE روی نام}
@@ -34,9 +35,13 @@ class WipeMetalTraderCommand extends Command
 
         $traders = $this->resolveTraders();
         if ($traders->isEmpty()) {
-            $this->error('تریدری با معیارهای داده‌شده پیدا نشد. یکی از trader / --phone / --name / --name-like را بدهید.');
+            $this->error('تریدری پیدا نشد. یکی از trader / --all / --phone / --name / --name-like را بدهید.');
 
             return self::FAILURE;
+        }
+
+        if ($this->option('all')) {
+            $this->warn("حالت --all: همه تریدرها ({$traders->count()} مورد) و داده‌های وابسته حذف می‌شوند.");
         }
 
         if ($traders->count() > 1 && ! $this->option('yes') && ! $this->option('dry-run')) {
@@ -109,6 +114,12 @@ class WipeMetalTraderCommand extends Command
      */
     private function resolveTraders(): Collection
     {
+        $query = MetalTrader::withTrashed()->newQuery();
+
+        if ($this->option('all')) {
+            return $query->orderBy('id')->get();
+        }
+
         if (
             ($this->argument('trader') === null || $this->argument('trader') === '')
             && ! $this->option('phone')
@@ -117,8 +128,6 @@ class WipeMetalTraderCommand extends Command
         ) {
             return collect();
         }
-
-        $query = MetalTrader::withTrashed()->newQuery();
 
         if ($this->argument('trader') !== null && $this->argument('trader') !== '') {
             $query->where('id', (int) $this->argument('trader'));
@@ -195,7 +204,7 @@ class WipeMetalTraderCommand extends Command
     {
         $orderIds = Schema::hasTable('metal_orders')
             ? DB::table('metal_orders')
-                ->where('created_type', 'metal_trader')
+                ->whereIn('created_type', $this->morphTypes())
                 ->where('created_id', $trader->id)
                 ->pluck('id')
             : collect();
@@ -261,7 +270,6 @@ class WipeMetalTraderCommand extends Command
         $this->deleteWhere('metal_trader_notifications', 'metal_trader_id', $traderId);
         $this->deleteWhere('metal_trader_logs', 'metal_trader_id', $traderId);
         $this->deleteWhere('metal_trader_suspensions', 'metal_trader_id', $traderId);
-        $this->deleteWhere('inquiry_metal_trader', 'metal_trader_id', $traderId);
 
         $this->deleteByIds('metal_orders', 'id', $ids['orderIds']);
         $this->deleteByIds('metal_trader_wallets', 'id', $ids['walletIds']);

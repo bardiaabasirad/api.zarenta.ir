@@ -13,7 +13,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class InquireOrdersStatus extends Command
+class InquireOrdersStatusCommand extends Command
 {
     /**
      * The name and signature of the console command.

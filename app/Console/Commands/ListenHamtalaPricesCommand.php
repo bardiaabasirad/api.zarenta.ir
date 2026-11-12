@@ -6,7 +6,7 @@ use App\Services\Hamtala\HamtalaPriceService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
 
-class ListenHamtalaPrices extends Command
+class ListenHamtalaPricesCommand extends Command
 {
     protected $signature = 'hamtala:listen-prices';
     protected $description = 'Subscribe to Hamtala Redis price channel';

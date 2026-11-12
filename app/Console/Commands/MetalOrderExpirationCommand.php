@@ -6,10 +6,14 @@ use App\Jobs\CheckingMetalOrderExpiration;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
-class RunMetalOrderExpirationService extends Command
+class MetalOrderExpirationCommand extends Command
 {
-    protected $signature = 'service:metal-order-expiration';
-    protected $description = 'Run CheckingMetalOrderExpiration every 2 seconds continuously (for PM2)';
+    protected $signature = 'metal-orders:expire';
+    protected $description = 'Run CheckingMetalOrderExpiration every 2 seconds continuously';
+
+    /*
+     * سفارش‌های pending که مهلت اعتبارشان تمام شده را منقضی و reject می‌کند.
+     */
 
     public function handle(): void
     {
@@ -23,7 +27,7 @@ class RunMetalOrderExpirationService extends Command
             try {
                 (new CheckingMetalOrderExpiration)->handle();
             } catch (\Throwable $e) {
-                Log::error('RunMetalOrderExpirationService Error: ' . $e->getMessage());
+                Log::error('MetalOrderExpirationCommand Error: ' . $e->getMessage());
             }
 
             sleep(2);

@@ -6,10 +6,16 @@ use App\Actions\MetalOrder\CheckStaleMetalOrdersAction;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
-class RunCheckStaleMetalOrdersService extends Command
+class CheckStaleMetalOrdersCommand extends Command
 {
-    protected $signature = 'service:check-stale-metal-orders';
+    protected $signature = 'metal-orders:check-stale';
     protected $description = 'Persistent runner: checks stale metal orders every 5 seconds';
+
+    /*
+     * بعد از اتمام زمان بررسی دستی، سفارش‌های pending
+     *را خودکار جلو می‌برد (پوشش خزانه / ارسال به همکار)،
+     * یا اگر نسبت دارایی/اهرم ناکافی باشد reject می‌کند.
+     * */
 
     private const INTERVAL_SECONDS   = 5;
     private const MEMORY_LIMIT_BYTES  = 256 * 1024 * 1024;
@@ -27,7 +33,7 @@ class RunCheckStaleMetalOrdersService extends Command
                 $action->execute();
             } catch (\Throwable $e) {
                 Log::channel('checkStaleMetalOrders')->error(
-                    'RunCheckStaleMetalOrdersService error: ' . $e->getMessage(),
+                    'CheckStaleMetalOrdersCommand error: ' . $e->getMessage(),
                     ['exception' => $e]
                 );
             }
@@ -36,7 +42,7 @@ class RunCheckStaleMetalOrdersService extends Command
             \DB::connection()->disconnect();
             gc_collect_cycles();
 
-            // ری‌استارت پیشگیرانه (pm2 دوباره بالا می‌آورد)
+            // ری‌استارت پیشگیرانه (supervisor دوباره بالا می‌آورد)
             if (memory_get_usage(true) > self::MEMORY_LIMIT_BYTES) {
                 $this->info('Restarting to free memory...');
                 return self::SUCCESS;

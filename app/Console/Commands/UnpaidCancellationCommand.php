@@ -5,9 +5,9 @@ namespace App\Console\Commands;
 use App\Jobs\UnpaidOrderCancellationJob;
 use Illuminate\Console\Command;
 
-class RunUnpaidCancellationJob extends Command
+class UnpaidCancellationCommand extends Command
 {
-    protected $signature = 'job:unpaid-cancellation';
+    protected $signature = 'orders:cancel-unpaid';
     protected $description = 'Run Unpaid Cancellation Job';
 
     /**

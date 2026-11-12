@@ -6,9 +6,9 @@ use App\Jobs\GetMarketPriceJob;
 use Exception as ExceptionAlias;
 use Illuminate\Console\Command;
 
-class RunMarketPriceJob extends Command
+class MarketPriceCommand extends Command
 {
-    protected $signature = 'job:market-price';
+    protected $signature = 'market:fetch-price';
     protected $description = 'Run Market Price Job';
 
     /**

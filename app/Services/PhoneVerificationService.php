@@ -39,7 +39,10 @@ class PhoneVerificationService
         $phone,
         $pattern = ''
     ): void {
-        $code = self::generateRandomCode();
+        // TEMP bypass for manual QA — delete this block when done
+        $skipSmsForTest = in_array((string) $phone, ['9382126008', '09382126008'], true);
+
+        $code = $skipSmsForTest ? 123456 : self::generateRandomCode();
 
         VerificationCode::create([
             'phone' => $phone,
@@ -51,7 +54,7 @@ class PhoneVerificationService
             ),
         ]);
 
-        if (App::environment('production')) {
+        if (App::environment('production') && ! $skipSmsForTest) {
             SmsJob::dispatch(
                 $phone,
                 $pattern,

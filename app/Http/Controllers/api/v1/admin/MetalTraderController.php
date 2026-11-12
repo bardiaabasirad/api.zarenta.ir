@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\api\v1\admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\MetalTraderStatisticsRequest;
 use App\Http\Requests\MetalTraderStoreRequest;
 use App\Http\Requests\MetalTraderUpdateRequest;
 use App\Http\Requests\UpdateProductSettingsRequest;
@@ -16,7 +17,11 @@ use App\Models\MetalTraderLog;
 use App\Models\MetalTraderWallet;
 use App\Models\Setting;
 use App\Models\VerificationCode;
+use App\Services\Metal\MetalTraderStatisticsService;
 use App\Services\MetalTraderService;
+use Carbon\Carbon;
+use Illuminate\Validation\ValidationException;
+use Morilog\Jalali\Jalalian;
 
 class MetalTraderController extends Controller
 {
@@ -266,6 +271,133 @@ class MetalTraderController extends Controller
                 'forward_items' => ($groupedAssets->get('forward_items') ?? collect())->values(),
             ],
         ]);
+    }
+
+    public function overallStatistics(
+        MetalTraderStatisticsRequest $request,
+        MetalTraderStatisticsService $statisticsService
+    ) {
+        [$start, $end] = $this->resolveStatisticsDateRange(
+            $request->input('preset'),
+            $request->input('start'),
+            $request->input('end')
+        );
+
+        return response()->json(
+            $statisticsService->build(null, [
+                'start' => $start,
+                'end' => $end,
+                'metal_item_id' => $request->filled('metal_item_id') ? $request->integer('metal_item_id') : null,
+                'order_type' => $request->input('order_type'),
+                'status' => $request->input('status'),
+            ])
+        );
+    }
+
+    public function statistics(
+        MetalTraderStatisticsRequest $request,
+        MetalTrader $metal_trader,
+        MetalTraderStatisticsService $statisticsService
+    ) {
+        [$start, $end] = $this->resolveStatisticsDateRange(
+            $request->input('preset'),
+            $request->input('start'),
+            $request->input('end')
+        );
+
+        return response()->json(
+            $statisticsService->build($metal_trader, [
+                'start' => $start,
+                'end' => $end,
+                'metal_item_id' => $request->filled('metal_item_id') ? $request->integer('metal_item_id') : null,
+                'order_type' => $request->input('order_type'),
+                'status' => $request->input('status'),
+            ])
+        );
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function resolveStatisticsDateRange(?string $preset, ?string $start, ?string $end): array
+    {
+        $preset = $preset ?: null;
+
+        if (in_array($preset, ['this_month', 'last_month', 'quarter', 'year'], true)) {
+            return $this->presetToDateRange($preset);
+        }
+
+        if ($start && $end) {
+            try {
+                $startCarbon = Jalalian::fromFormat('Y/m/d', $this->normalizeJalaliDate($start))->toCarbon()->startOfDay();
+                $endCarbon = Jalalian::fromFormat('Y/m/d', $this->normalizeJalaliDate($end))->toCarbon()->endOfDay();
+            } catch (\Throwable $e) {
+                throw ValidationException::withMessages([
+                    'start' => ['بازه تاریخ نامعتبر است'],
+                ]);
+            }
+
+            if ($startCarbon->gt($endCarbon)) {
+                throw ValidationException::withMessages([
+                    'start' => ['تاریخ شروع نمی‌تواند بعد از تاریخ پایان باشد'],
+                ]);
+            }
+
+            if ($startCarbon->diffInDays($endCarbon) > 366) {
+                throw ValidationException::withMessages([
+                    'start' => ['حداکثر بازه مجاز یک سال است'],
+                ]);
+            }
+
+            return [$startCarbon, $endCarbon];
+        }
+
+        return $this->presetToDateRange('this_month');
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function presetToDateRange(string $preset): array
+    {
+        $now = Jalalian::now();
+
+        return match ($preset) {
+            'last_month' => (function () use ($now) {
+                $last = $now->getLastMonth();
+                $year = $last->getYear();
+                $month = $last->getMonth();
+                $from = (new Jalalian($year, $month, 1))->toCarbon()->startOfDay();
+                $to = (new Jalalian($year, $month, $last->getMonthDays()))->toCarbon()->endOfDay();
+
+                return [$from, $to];
+            })(),
+            'quarter' => (function () use ($now) {
+                $from = $now->getFirstDayOfQuarter()->toCarbon()->startOfDay();
+                $to = Carbon::now()->endOfDay();
+
+                return [$from, $to];
+            })(),
+            'year' => (function () use ($now) {
+                $from = $now->getFirstDayOfYear()->toCarbon()->startOfDay();
+                $to = Carbon::now()->endOfDay();
+
+                return [$from, $to];
+            })(),
+            default => (function () use ($now) {
+                $year = $now->getYear();
+                $month = $now->getMonth();
+                $from = (new Jalalian($year, $month, 1))->toCarbon()->startOfDay();
+                $to = Carbon::now()->endOfDay();
+
+                return [$from, $to];
+            })(),
+        };
+    }
+
+    private function normalizeJalaliDate(string $value): string
+    {
+        return str_replace('-', '/', trim($value));
     }
 
     public function log($metal_trader_id)

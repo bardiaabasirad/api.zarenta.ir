@@ -380,10 +380,12 @@ Route::prefix('v1/admin')
             Route::get('', [MetalTraderController::class, 'index']);
             Route::get('search', [MetalTraderController::class, 'search']);
             Route::get('leads', [MetalTraderController::class, 'leads']);
+            Route::get('statistics', [MetalTraderController::class, 'overallStatistics']);
             Route::post('', [MetalTraderController::class, 'store']);
             Route::get('create', [MetalTraderController::class, 'create']);
             Route::get('{metal_trader}', [MetalTraderController::class, 'show']);
             Route::get('{metal_trader}/assets', [MetalTraderController::class, 'assets']);
+            Route::get('{metal_trader}/statistics', [MetalTraderController::class, 'statistics']);
             Route::get('{metal_trader}/fiat-withdrawal-meta', [MetalTraderFiatWithdrawalController::class, 'formMeta']);
             Route::patch('{metal_trader}', [MetalTraderController::class, 'update']);
             Route::patch('{metal_trader}/product-settings', [MetalTraderController::class, 'updateProductSettings']);

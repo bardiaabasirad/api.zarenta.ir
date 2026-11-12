@@ -2,16 +2,26 @@
 
 namespace App\Http\Requests;
 
+use App\Models\MetalTrader;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class MetalTraderCompleteProfileRequest extends FormRequest
 {
     public function rules(): array
     {
+        $traderId = MetalTrader::where('phone', $this->input('phone'))->value('id');
+
         return [
             'phone' => ['required', 'string', 'regex:/^9\d{9}$/'],
             'full_name' => ['required', 'string', 'max:255'],
-            'business_type' => ['required', 'string', 'in:gold_dealer,trader,other'],
+            'national_code' => [
+                'required',
+                'string',
+                'digits:10',
+                Rule::unique('metal_traders', 'national_code')->ignore($traderId),
+            ],
+            'address' => ['required', 'string', 'max:2000'],
         ];
     }
 
@@ -20,7 +30,8 @@ class MetalTraderCompleteProfileRequest extends FormRequest
         return [
             'phone' => 'شماره تلفن',
             'full_name' => 'نام و نام خانوادگی',
-            'business_type' => 'زمینه فعالیت',
+            'national_code' => 'کد ملی',
+            'address' => 'آدرس',
         ];
     }
 

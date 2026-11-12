@@ -46,10 +46,7 @@ class ClientRateUpdated implements ShouldBroadcastNow
             'user' => [
                 'id' => $this->user->id,
                 'name' => $this->user->name,
-                'kimi_account_id' => $this->user->kimi_account_id,
-                'api_key' => $this->user->api_key,
                 'phone' => $this->user->phone,
-                'balance' => $this->user->balance,
                 'limits' => [
                     'today_spot_settlement_min_order' => $this->user->products_settings['today_spot_settlement_min_order'],
                     'today_spot_settlement_max_order' => $this->user->products_settings['today_spot_settlement_max_order'],
@@ -79,7 +76,6 @@ class ClientRateUpdated implements ShouldBroadcastNow
                     'gold_coin_old_version_max_order' => $this->user->products_settings['gold_coin_old_version_max_order'],
                     'gold_coin_old_version_status' => $this->user->products_settings['gold_coin_old_version_status'],
                 ],
-                'inquiry_access' => $this->user->subscriptionNotExpired('inquiry'),
             ]
         ];
     }

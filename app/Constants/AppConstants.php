@@ -22,12 +22,4 @@ class AppConstants
     public const GOLD_COIN_404 = 'gold_coin_404';
     public const GOLD_HALF_COIN_404 = 'gold_half_coin_404';
     public const GOLD_QUARTER_COIN_404 = 'gold_quarter_coin_404';
-    public const KIMIA_RIAL = 11;
-    public const KIMIA_TODAY_SPOT_SETTLEMENT = 11;
-    public const KIMIA_TOMORROW_SPOT_SETTLEMENT = 268;
-    public const KIMIA_DAY_AFTER_TOMORROW_SPOT_SETTLEMENT = 218;
-    public const KIMIA_GOLD_COIN_86 = 16;
-    public const KIMIA_GOLD_HALF_COIN_86 = 17;
-    public const KIMIA_GOLD_QUARTER_COIN_86 = 18;
-    public const KIMIA_GOLD_COIN_OLD_VERSION = 15;
 }

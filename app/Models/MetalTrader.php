@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
 #[ObservedBy([MetalTraderObserver::class])]
@@ -19,16 +18,13 @@ class MetalTrader extends Authenticatable
 
     protected $fillable = [
         'name',
-        'api_key',
         'password',
         'dealing_group_id',
-        'kimi_account_id',
-        'trade_leverage',
         'asset_risk_threshold',
         'phone',
+        'national_code',
+        'address',
         'avatar',
-        'balance',
-        'aggregated_view_of_invoices',
         'market_opening_notification',
         'status',
         'last_seen',
@@ -36,16 +32,11 @@ class MetalTrader extends Authenticatable
         'last_login_ip',
         'products_settings',
         'business_type',
-        'webhook_url',
-        'webhook_secret',
-        'webhook_secret_version',
-        'webhook_enabled',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
-        'webhook_secret'
     ];
 
     protected function casts(): array
@@ -53,8 +44,6 @@ class MetalTrader extends Authenticatable
         return [
             'password' => 'hashed',
             'last_seen' => 'datetime',
-            'webhook_secret' => 'encrypted',
-            'webhook_enabled' => 'boolean',
             'asset_risk_threshold' => 'float',
         ];
     }
@@ -66,39 +55,6 @@ class MetalTrader extends Authenticatable
     public function getAuthIdentifierForBroadcasting(): string
     {
         return 'metal_trader-'.$this->getAuthIdentifier();
-    }
-
-    /**
-     * Generate a unique API key
-     *
-     * @return string
-     */
-    public static function generateApiKey()
-    {
-        do {
-            $api_key = Str::random(32);
-        } while (self::where('api_key', $api_key)->exists());
-
-        return $api_key;
-    }
-
-    public function hasFeature($featureSlug)
-    {
-        return $this->subscriptions()
-            ->whereHas('subscriptionFeatures', function ($query) use ($featureSlug) {
-                $query->where('slug', $featureSlug);
-            })
-            ->exists();
-    }
-
-    public function subscriptionNotExpired($featureSlug)
-    {
-        return $this->subscriptions()
-            ->where('ends_at', '>', now())
-            ->whereHas('subscriptionFeatures', function ($query) use ($featureSlug) {
-                $query->where('slug', $featureSlug);
-            })
-            ->exists();
     }
 
     public function dealingGroup()
@@ -118,19 +74,9 @@ class MetalTrader extends Authenticatable
             ->whereNull('metal_item_id');
     }
 
-    public function subscriptions()
-    {
-        return $this->hasMany(Subscription::class);
-    }
-
     public function metalOrders()
     {
         return $this->morphMany(MetalOrder::class, 'created');
-    }
-
-    public function inquiries()
-    {
-        return $this->belongsToMany(Inquiry::class);
     }
 
     public function scopeWithHasPass(Builder $query): Builder

@@ -9,11 +9,11 @@ use App\Http\Requests\MetalTraderCompleteProfileRequest;
 use App\Http\Requests\MetalTraderLoginByPasswordRequest;
 use App\Http\Requests\MetalTraderLoginRequest;
 use App\Http\Requests\MetalTraderReviewRequest;
+use App\Http\Requests\MetalTraderSelectBusinessTypeRequest;
 use App\Http\Requests\MetalTraderVerifyPhoneRequest;
 use App\Http\Resources\ClientInfoResource;
 use App\Models\MetalTrader;
 use App\Services\MetalTraderLeadService;
-use App\Services\MetalTraderService;
 use App\Services\PhoneVerificationService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -107,7 +107,6 @@ class AuthenticationController extends Controller
             'last_login_at' => now(),
             'last_login_ip' => $request->ip()
         ]);
-        $metalTrader->inquiry_access = $metalTrader->subscriptionNotExpired('inquiry');
 
         return response()->json([
             'token' => $token->plainTextToken,
@@ -115,7 +114,7 @@ class AuthenticationController extends Controller
         ]);
     }
 
-    public function verify(MetalTraderVerifyPhoneRequest $request, MetalTraderService $metalTraderService)
+    public function verify(MetalTraderVerifyPhoneRequest $request)
     {
         $code = $request->string('verification_code')->toString();
         $phone = $request->string('phone')->toString();
@@ -144,8 +143,8 @@ class AuthenticationController extends Controller
             if (!$metalTrader) {
                 MetalTrader::create([
                     'phone' => $phone,
-                    'api_key' => $metalTraderService->generateApiKey(),
                     'status' => 'pre_registered',
+                    'business_type' => null,
                 ]);
 
                 app(MetalTraderLeadService::class)->remove($phone);
@@ -153,12 +152,23 @@ class AuthenticationController extends Controller
                 DB::commit();
 
                 return response()->json([
-                    'next_action' => 'complete-profile',
+                    'next_action' => 'select-business-type',
+                    'business_type' => null,
+                ], Response::HTTP_OK);
+            }
+
+            // ─── ثبت‌نام ناتمام ───────────────────────────────────────────
+            if ($metalTrader->status === 'pre_registered') {
+                DB::rollBack();
+
+                return response()->json([
+                    'next_action' => $this->resolvePreRegisteredNextAction($metalTrader),
+                    'business_type' => $metalTrader->business_type,
                 ], Response::HTTP_OK);
             }
 
             // ─── حساب در انتظار تأیید مدیر ───────────────────────────────
-            if (in_array($metalTrader->status, ['pre_registered', 'pending'])) {
+            if ($metalTrader->status === 'pending') {
                 DB::rollBack();
 
                 return response()->json([
@@ -212,7 +222,6 @@ class AuthenticationController extends Controller
                 'last_login_at' => now(),
                 'last_login_ip' => $request->ip()
             ]);
-            $metalTrader->inquiry_access = $metalTrader->subscriptionNotExpired('inquiry');
 
             DB::commit();
 
@@ -228,17 +237,76 @@ class AuthenticationController extends Controller
         }
     }
 
+    public function selectBusinessType(MetalTraderSelectBusinessTypeRequest $request)
+    {
+        $metalTrader = MetalTrader::where('phone', $request->input('phone'))
+            ->where('status', 'pre_registered')
+            ->first();
+
+        if (! $metalTrader) {
+            throw ValidationException::withMessages([
+                'phone' => ['ثبت‌نام ناقصی برای این شماره یافت نشد.'],
+            ]);
+        }
+
+        $metalTrader->update([
+            'business_type' => $request->input('business_type'),
+        ]);
+
+        return response()->json([
+            'next_action' => 'complete-profile',
+            'business_type' => $metalTrader->business_type,
+        ], Response::HTTP_OK);
+    }
+
     public function completeProfile(MetalTraderCompleteProfileRequest $request)
     {
-        MetalTrader::where('phone', $request->input('phone'))->update([
+        $metalTrader = MetalTrader::where('phone', $request->input('phone'))
+            ->where('status', 'pre_registered')
+            ->first();
+
+        if (! $metalTrader) {
+            throw ValidationException::withMessages([
+                'phone' => ['ثبت‌نام ناقصی برای این شماره یافت نشد.'],
+            ]);
+        }
+
+        if (blank($metalTrader->business_type)) {
+            throw ValidationException::withMessages([
+                'business_type' => ['ابتدا زمینه فعالیت را انتخاب کنید.'],
+            ]);
+        }
+
+        $metalTrader->update([
             'status' => 'pending',
             'name' => $request->input('full_name'),
-            'business_type' => $request->input('business_type'),
+            'national_code' => $request->input('national_code'),
+            'address' => $request->input('address'),
         ]);
 
         return response()->json([
             'next_action' => 'pending',
         ], Response::HTTP_OK);
+    }
+
+    private function resolvePreRegisteredNextAction(MetalTrader $metalTrader): string
+    {
+        if (blank($metalTrader->business_type)) {
+            return 'select-business-type';
+        }
+
+        if (
+            blank($metalTrader->name)
+            || blank($metalTrader->national_code)
+            || blank($metalTrader->address)
+        ) {
+            return 'complete-profile';
+        }
+
+        // اطلاعات کامل است ولی هنوز pending نشده؛ به صف تأیید بفرست
+        $metalTrader->update(['status' => 'pending']);
+
+        return 'pending';
     }
 
     public function changePassword(
@@ -262,7 +330,6 @@ class AuthenticationController extends Controller
             'last_login_at' => now(),
             'last_login_ip' => $request->ip()
         ]);
-        $metalTrader->inquiry_access = $metalTrader->subscriptionNotExpired('inquiry');
 
         return response()->json([
             'next_action' => 'home',

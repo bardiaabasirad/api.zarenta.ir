@@ -11,8 +11,6 @@ class MetalTraderStoreRequest extends FormRequest
         return [
             'name' => ['required','max:255'],
             'phone' => ['required','regex:/^9\d{9}$/','unique:users,phone'],
-            'kimi_account_id' => ['sometimes','nullable'],
-            'trade_leverage' => ['sometimes','nullable','integer','min:1','max:255'],
             'asset_risk_threshold' => ['sometimes','nullable','numeric','min:0','max:100'],
             'dealing_group_id' => ['sometimes','nullable','exists:dealing_groups,id'],
         ];
@@ -26,7 +24,6 @@ class MetalTraderStoreRequest extends FormRequest
             'phone.regex' => 'شماره موبایل نامعتبر است',
             'phone.required' => 'شماره موبایل اجباری است',
             'phone.unique' => 'شماره موبایل قبلا انتخاب شده است',
-            'kimi_account_id.required' => 'شناسه حسابداری کیمیا اجباری است',
         ];
     }
 

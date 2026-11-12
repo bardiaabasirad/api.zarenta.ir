@@ -381,18 +381,12 @@ Route::prefix('v1/admin')
             Route::get('search', [MetalTraderController::class, 'search']);
             Route::get('leads', [MetalTraderController::class, 'leads']);
             Route::post('', [MetalTraderController::class, 'store']);
-            Route::get('subscription/{subscription}', [MetalTraderController::class, 'showSubscription']);
-            Route::patch('subscription/{subscription}', [MetalTraderController::class, 'updateSubscription']);
             Route::get('create', [MetalTraderController::class, 'create']);
             Route::get('{metal_trader}', [MetalTraderController::class, 'show']);
-            Route::get('{metal_trader}/balance', [MetalTraderController::class, 'balance']);
             Route::get('{metal_trader}/fiat-withdrawal-meta', [MetalTraderFiatWithdrawalController::class, 'formMeta']);
             Route::patch('{metal_trader}', [MetalTraderController::class, 'update']);
             Route::patch('{metal_trader}/product-settings', [MetalTraderController::class, 'updateProductSettings']);
             Route::get('{metal_trader}/log', [MetalTraderController::class, 'log']);
-            Route::get('{metal_trader}/subscriptions', [MetalTraderController::class, 'subscriptions']);
-            Route::post('{metal_trader}/subscriptions', [MetalTraderController::class, 'storeSubscriptions']);
-            Route::get('{metal_trader}/subscriptions/create', [MetalTraderController::class, 'createSubscription']);
         });
 
         Route::prefix('metal-trader-bank-accounts')->group(function () {
@@ -456,8 +450,6 @@ Route::prefix('v1/admin')
             Route::put('coins/{board_coin}', [BoardCoinController::class, 'update']);
             Route::delete('coins/{board_coin}', [BoardCoinController::class, 'destroy']);
         });
-
-        Route::get('/kimi-accounts/search', [MetalTraderController::class, 'searchKimiAccount']);
 
         Route::prefix('jibit')->group(function(){
             Route::get('tokens/refresh', [JibitController::class, 'refreshToken']);

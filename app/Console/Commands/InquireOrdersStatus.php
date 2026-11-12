@@ -7,7 +7,6 @@ use App\Models\MetalOrder;
 use App\Models\MetalOrderExchange;
 use App\Models\Setting;
 use App\Services\Hamtala\HamtalaApiService;
-use App\Services\KimiaService;
 use App\Services\MetalOrderService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
@@ -176,8 +175,6 @@ class InquireOrdersStatus extends Command
                     $metalOrderExchange->status = 'confirmed';
                     $metalOrderExchange->resolved_at = now();
                     $metalOrderExchange->save();
-
-                    KimiaService::submitHamtalaOrder($metalOrder, $metalOrderExchange);
 
                     Log::channel('checkStaleMetalOrders')->info("MetalOrder {$metalOrderExchange->metal_order_id} succeed");
                 } else {

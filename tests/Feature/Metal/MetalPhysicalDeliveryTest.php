@@ -80,7 +80,6 @@ function pdrTrader(): MetalTrader
     return MetalTrader::query()->create([
         'name' => 'trader-' . uniqid(),
         'phone' => (string) random_int(9000000000, 9999999999),
-        'api_key' => bin2hex(random_bytes(16)),
         'status' => 'active',
     ]);
 }

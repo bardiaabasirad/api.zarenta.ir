@@ -1154,7 +1154,6 @@ class CartController extends Controller
                         'name' => $latestMetalPrice->metalItem->title,
                         'en_unit' => 'gram',
                         'metal_item_id' => $latestMetalPrice->metalItem->id,
-                        'kimia_product_id' => $latestMetalPrice->metalItem->kimia_product_id,
                         'fee' => $price,
                         'fee_margin' => '0',
                         'unit' => $latestMetalPrice->metalItem->unit == 'gram' ? 'گرم' : 'عدد',

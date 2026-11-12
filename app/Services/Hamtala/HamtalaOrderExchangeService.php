@@ -12,7 +12,6 @@ use App\Models\MetalItemPriceSource;
 use App\Models\MetalOrder;
 use App\Models\MetalOrderExchange;
 use App\Models\Setting;
-use App\Services\KimiaService;
 use App\Services\MetalOrderService;
 use Carbon\Carbon;
 use Illuminate\Http\Client\ConnectionException;
@@ -345,7 +344,6 @@ class HamtalaOrderExchangeService
                     throw $e;
                 }
 
-//                KimiaService::submitHamtalaOrder($metalOrder, $metalOrderExchange);
             }
         } elseif ($remoteStatus === HamtalaConstants::ORDER_PENDING) {
             $update['status'] = 'placed';

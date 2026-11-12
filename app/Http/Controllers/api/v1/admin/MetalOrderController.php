@@ -131,45 +131,6 @@ class MetalOrderController extends Controller
         ]);
     }
 
-    /**
-     * تابع مخصوص تبادل ارز / سکه.
-     */
-    private function handleCurrencyExchange($apiClient, $order, $action, $goldPrice, $productName): void
-    {
-        $product = match ($productName) {
-            'gold_coin_86' => 16,
-            'gold_half_coin_86' => 17,
-            'gold_quarter_coin_86' => 18,
-            'gold_coin_old_version' => 15,
-            default => null,
-        };
-
-        if (!$product) {
-            return;
-        }
-
-        $common = [
-            'RequestId' => \Illuminate\Support\Str::uuid()->toString(),
-            'AddToExistingDateVoucher' => false,
-            'AccountId' => $apiClient->kimi_account_id,
-            'Date' => null,
-            'Comment' => 'معامله آنلاین',
-            'Action' => $action,
-            'UnitPrice' => $order->amount * 10,
-            'DivideUnitPrice' => null,
-            'Quantity' => $order->qty,
-            'GoldPrice' => $goldPrice,
-            'GoldUnit' => null,
-        ];
-
-        $isBuy = $order->order_type === 'buy';
-
-        \App\Services\KimiaService::voucherExchangeCurrency(array_merge($common, [
-            'SourceId' => $isBuy ? 11 : $product,
-            'TargetId' => $isBuy ? $product : 11,
-        ]));
-    }
-
     public function log($id)
     {
         $logs = MetalOrderLog::where('metal_order_id', $id)

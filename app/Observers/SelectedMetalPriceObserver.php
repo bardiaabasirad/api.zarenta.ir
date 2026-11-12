@@ -5,7 +5,6 @@ namespace App\Observers;
 use App\Events\AdminSelectedMetalPriceUpdated;
 use App\Events\BoardMetalPriceUpdated;
 use App\Events\SelectedMetalPriceUpdated;
-use App\Jobs\DispatchMetalPriceWebhooks;
 use App\Models\BoardCoin;
 use App\Models\MetalItem;
 use App\Models\SelectedMetalPrice;
@@ -29,17 +28,6 @@ class SelectedMetalPriceObserver
             ]);
 
             AdminSelectedMetalPriceUpdated::dispatch($price);
-
-            if ($price->metalItem && (bool) $price->metalItem->is_visible) {
-                $payload = $price->only(['id', 'metal_item_id', 'buy', 'sell']);
-                $payload['created_at'] = $price->created_at?->toISOString();
-                $payload['updated_at'] = $price->updated_at?->toISOString();
-                $payload['product'] = $price->metalItem->title;
-
-                DispatchMetalPriceWebhooks::dispatch($payload)
-                    ->afterCommit();
-            }
-
 
             $moltenPageMetalItem = Cache::rememberForever(
                 'setting.molten_page_metal_item_id',
@@ -152,22 +140,6 @@ class SelectedMetalPriceObserver
             // Dispatch events
             SelectedMetalPriceUpdated::dispatch($price);
             AdminSelectedMetalPriceUpdated::dispatch($price);
-
-            if ($metalItems->has($metalItemId)) {
-                DispatchMetalPriceWebhooks::dispatch(
-                    $price->only([
-                        'id',
-                        'metal_item_id',
-                        'buy',
-                        'sell',
-                        'created_at',
-                        'updated_at',
-                    ]) + [
-                        'product' => $price->metalItem->title,
-                    ]
-                )
-                    ->afterCommit();
-            }
 
             // Check molten page notification
             if ($moltenPageMetalItemId && $metalItemId == $moltenPageMetalItemId) {

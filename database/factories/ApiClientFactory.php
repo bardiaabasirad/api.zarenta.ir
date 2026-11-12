@@ -4,13 +4,14 @@ namespace Database\Factories;
 
 use App\Models\MetalTrader;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Str;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\ActionReason>
+ * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\MetalTrader>
  */
 class ApiClientFactory extends Factory
 {
+    protected $model = MetalTrader::class;
+
     /**
      * Define the model's default state.
      *
@@ -20,15 +21,8 @@ class ApiClientFactory extends Factory
     {
         return [
             'name' => fake()->name,
-            'api_key' => function () {
-                do {
-                    $api_key = Str::random(32);
-                } while (MetalTrader::where('api_key', $api_key)->exists());
-
-                return $api_key;
-            },
             'phone' => fake()->numerify('9#########'),
-            'balance' => fake()->numberBetween(0, 100000)
+            'status' => 'active',
         ];
     }
 }

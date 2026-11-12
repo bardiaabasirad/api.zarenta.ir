@@ -11,7 +11,6 @@ use App\Models\Setting;
 use App\Services\AssetService;
 use App\Services\Hamtala\HamtalaOrderExchangeService;
 use App\Services\Hamtala\HamtalaPriceService;
-use App\Services\KimiaService;
 use App\Services\MetalOrderService;
 use Carbon\Carbon;
 use Exception;
@@ -41,29 +40,6 @@ class ManualController extends Controller
         ])->pluck('option_value', 'option_key');
 
         return $minAndMax['max_melted_stock_quantity'];
-        $baseUrl  = config('services.kimia_api.base_url');
-        $username = config('services.kimia_api.username');
-        $password = config('services.kimia_api.password');
-
-        return [
-            $baseUrl,
-            $username,
-            $password
-        ];
-
-        $metalItem = MetalItem::with('group')->find(5);
-
-        return $metalItem->group->id == 1 ? 'yes':'no';
-
-        return KimiaService::getProductCurrencies();
-
-//        MetalOrder::where([
-//            'source_order_id', $source_order_id,
-//            'created_type', (new MetalTrader())->getMorphClass(),
-//            'created_id', $metal_trader_id
-//        ])->first();
-//        $metalOrder = MetalOrder::find(14369);
-//        $this->hamtalaOrderExchangeService->submitAutoOrder($metalOrder);
     }
 
     public function setNewTaban(Request $request)

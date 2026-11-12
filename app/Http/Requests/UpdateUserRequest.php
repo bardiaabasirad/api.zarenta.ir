@@ -18,7 +18,6 @@ class UpdateUserRequest extends FormRequest
             'allowed_bullion_ordering' => ['sometimes','in:active,inactive'],
             'ban_reason' => ['sometimes','nullable'],
             'ban_description' => ['sometimes','nullable'],
-            'kimi_account_id' => ['sometimes', 'nullable', 'max:255'],
         ];
     }
 

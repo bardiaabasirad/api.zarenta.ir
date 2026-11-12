@@ -46,12 +46,6 @@ return [
         'app_key'  => env('HAMTALA_APP_KEY'),
     ],
 
-    'kimia_api' => [
-        'base_url' => env('KIMIA_API_BASE_URL', 'http://188.121.117.125:11000/api'),
-        'username' => env('KIMIA_API_USERNAME'),
-        'password' => env('KIMIA_API_PASSWORD'),
-    ],
-
     'internal' => [
         'secret' => env('INTERNAL_API_SECRET'),
     ],

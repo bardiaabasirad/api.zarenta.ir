@@ -20,16 +20,11 @@ class ClientInfoResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'kimi_account_id' => $this->kimi_account_id,
-            'api_key' => $this->api_key,
             'phone' => $this->phone,
             'avatar' => $this->avatar,
-            'balance' => $this->balance,
             'group' => $encryptedDealingGroup,
-            'inquiry_access' => $this->inquiry_access,
             'has_pass' => (bool) $this->has_pass,
             'market_opening_notification' => $this->market_opening_notification,
-            'aggregated_view_of_invoices' => $this->aggregated_view_of_invoices,
         ];
     }
 }

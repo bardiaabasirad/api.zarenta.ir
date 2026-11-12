@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Route;
 
 require __DIR__.'/api.admin.php';
 require __DIR__.'/api.general.php';
-require __DIR__.'/api.external.php';
 require __DIR__ . '/api.traders.php';
 require __DIR__ . '/api.providers.php';
 require __DIR__ . '/api.test.php';

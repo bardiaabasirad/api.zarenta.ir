@@ -48,14 +48,9 @@ class MetalTraderUpdated implements ShouldBroadcastNow
         return [
             'id' => $this->metalTrader->id,
             'name' => $this->metalTrader->name,
-            'kimi_account_id' => $this->metalTrader->kimi_account_id,
-            'api_key' => $this->metalTrader->api_key,
             'phone' => $this->metalTrader->phone,
-            'balance' => $this->metalTrader->balance,
             'group' => $encryptedGroup,
-            'inquiry_access' => $this->metalTrader->inquiry_access,
             'market_opening_notification' => $this->metalTrader->market_opening_notification,
-            'aggregated_view_of_invoices' => $this->metalTrader->aggregated_view_of_invoices,
         ];
     }
 }

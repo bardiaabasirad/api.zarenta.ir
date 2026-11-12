@@ -26,12 +26,6 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->alias([
-            'verify.api.keys' => \App\Http\Middleware\VerifyApiKeys::class,
-            'verify.client.api.key' => \App\Http\Middleware\VerifyClientApiKey::class,
-            'market.rate.limit' => \App\Http\Middleware\MarketRateLimit::class,
-            'price.rate.limit' => \App\Http\Middleware\PriceRateLimit::class,
-            'has.feature' => \App\Http\Middleware\EnsureUserHasFeature::class,
-            'subscription.not.expired' => \App\Http\Middleware\EnsureSubscriptionNotExpired::class,
             'user.activity' => \App\Http\Middleware\UserActivity::class,
             'client.activity' => \App\Http\Middleware\ClientActivity::class,
             'metal-trader.active' => \App\Http\Middleware\EnsureMetalTraderIsActive::class,

@@ -146,8 +146,5 @@
 
     </table>
 
-{{--    <div>--}}
-{{--        {!! buildBalanceSummary($voucherBalances) !!}--}}
-{{--    </div>--}}
 </body>
 </html>

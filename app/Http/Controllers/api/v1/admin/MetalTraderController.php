@@ -5,8 +5,6 @@ namespace App\Http\Controllers\api\v1\admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MetalTraderStoreRequest;
 use App\Http\Requests\MetalTraderUpdateRequest;
-use App\Http\Requests\SubscriptionStoreRequest;
-use App\Http\Requests\SubscriptionUpdateRequest;
 use App\Http\Requests\UpdateProductSettingsRequest;
 use App\Jobs\SmsJob;
 use App\Models\BlockReason;
@@ -16,13 +14,8 @@ use App\Models\MetalTrader;
 use App\Models\MetalTraderLead;
 use App\Models\MetalTraderLog;
 use App\Models\Setting;
-use App\Models\Subscription;
-use App\Models\SubscriptionFeature;
 use App\Models\VerificationCode;
-use App\Services\KimiaService;
 use App\Services\MetalTraderService;
-use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 
 class MetalTraderController extends Controller
 {
@@ -166,7 +159,6 @@ class MetalTraderController extends Controller
     public function store(MetalTraderStoreRequest $request, MetalTraderService $metalTraderService)
     {
         $attributes = $request->validated();
-        $attributes['api_key'] = $metalTraderService->generateApiKey();
         $attributes['status'] = 'active';
         $metalTrader = MetalTrader::create($attributes);
 
@@ -180,31 +172,15 @@ class MetalTraderController extends Controller
 
     public function update(MetalTraderUpdateRequest $request, MetalTrader $metal_trader, MetalTraderService $service)
     {
-        // Update the broker and log the changes with the description
-        $webhookSecret = $service->updateWithLogging(
+        $service->updateWithLogging(
             $metal_trader,
             $request->validated()
         );
 
-        $response = [
-            'metal_trader' => $metal_trader->fresh()->load([
-                'subscriptions' => function ($query) {
-                    $query->where('ends_at', '>', now());
-                },
-                'dealingGroup'
-            ]),
+        return response()->json([
+            'metal_trader' => $metal_trader->fresh()->load(['dealingGroup']),
             'message' => 'اطلاعات کلاینت با موفقیت بروزرسانی شد',
-        ];
-
-        if ($webhookSecret !== null) {
-            $response['webhook_setup'] = [
-                'secret' => $webhookSecret,
-                'secret_version' => 'v1',
-                'message' => 'کلید اختصاصی امضای وب‌هوک با موفقیت تولید شد. این کلید تنها یک‌بار نمایش داده می‌شود. آن را کپی کرده و از طریق یک کانال امن در اختیار کاربر قرار دهید.',
-            ];
-        }
-
-        return response()->json($response);
+        ]);
     }
 
     public function updateProductSettings(UpdateProductSettingsRequest $request, MetalTrader $metal_trader)
@@ -230,40 +206,9 @@ class MetalTraderController extends Controller
         ]);
     }
 
-    public function updateSubscription(SubscriptionUpdateRequest $request, Subscription $subscription)
-    {
-        // Parse dates
-        if($request->starts_at){
-            $subscription->starts_at = Carbon::createFromFormat('Y-m-d', $request->starts_at);
-        }
-
-        if($request->ends_at) {
-            $subscription->ends_at = Carbon::createFromFormat('Y-m-d', $request->ends_at);
-        }
-
-        if(isset($request->amount)){
-            $subscription->amount = $request->amount;
-        }
-
-        // Attach features to the subscription
-        if ($request->features) {
-            $subscription->subscriptionFeatures()->sync($request->features);
-        }
-
-        $subscription->save();
-
-        return response()->json([
-            'subscription' => $subscription->load('subscriptionFeatures'),
-            'message' => 'اطلاعات کلاینت با موفقیت بروزرسانی شد',
-        ]);
-    }
-
     public function show(MetalTrader $metal_trader)
     {
         $metal_trader->load([
-            'subscriptions' => function ($query) {
-                $query->where('ends_at', '>', now());
-            },
             'assets',
             'dealingGroup:id,name'
         ]);
@@ -284,13 +229,6 @@ class MetalTraderController extends Controller
             'dealing_groups' => DealingGroup::select('id', 'name')->get(),
             'block_reasons' => BlockReason::where('type','clients')->get(),
         ]);
-    }
-
-    public function balance(MetalTrader $metal_trader)
-    {
-        $aggregated = request('aggregated') ?? 'inactive';
-
-        return response()->json(KimiaService::getVoucherBalance($metal_trader->kimi_account_id, $aggregated));
     }
 
     public function log($metal_trader_id)
@@ -335,95 +273,5 @@ class MetalTraderController extends Controller
         })->values()->all();
 
         return response()->json($transformedData);
-    }
-
-    public function subscriptions($metal_trader_id)
-    {
-        $subscriptions = Subscription::with('subscriptionFeatures')->where('metal_trader_id', $metal_trader_id)->get();
-
-        return response()->json([
-            'subscriptions' => $subscriptions
-        ]);
-    }
-
-    public function createSubscription(MetalTrader $metal_trader)
-    {
-        return response()->json([
-            'client' => $metal_trader,
-            'features' => SubscriptionFeature::all()
-        ]);
-    }
-
-    public function storeSubscriptions(MetalTrader $metal_trader, SubscriptionStoreRequest $request)
-    {
-        try {
-            // Parse dates
-            $start_date = Carbon::createFromFormat('Y-m-d', $request->start_date);
-            $ends_date = Carbon::createFromFormat('Y-m-d', $request->ends_date);
-
-            // Use a database transaction to ensure atomicity
-            $subscription = DB::transaction(function () use ($metal_trader, $start_date, $ends_date, $request) {
-                // Create the subscription
-                $subscription = $metal_trader->subscriptions()->create([
-                    'starts_at' => $start_date,
-                    'ends_at' => $ends_date,
-                    'amount' => $request->amount,
-                ]);
-
-                // Attach features to the subscription
-                if ($request->features) {
-                    $subscription->subscriptionFeatures()->attach($request->features);
-                }
-
-                return $subscription;
-            });
-
-            // Return a JSON response
-            return response()->json([
-                'message' => 'اشتراک جدید با موفقیت ایجاد شد',
-                'subscription' => $subscription->load('subscriptionFeatures')
-            ]);
-        } catch (\Carbon\Exceptions\InvalidFormatException $e) {
-            return response()->json([
-                'error' => 'Invalid date format. Use YYYY-MM-DD.',
-            ], 422);
-        } catch (\Exception $e) {
-            return response()->json([
-                'error' => 'Failed to create subscription: ' . $e->getMessage(),
-            ], 500);
-        }
-    }
-
-    public function showSubscription(Subscription $subscription)
-    {
-        $subscription->load('subscriptionFeatures');
-        $client = MetalTrader::where('id', $subscription->metal_trader_id)->first();
-
-        return response()->json([
-            'client' => $client,
-            'subscription' => $subscription,
-            'features' => SubscriptionFeature::all()
-        ]);
-    }
-
-    public function searchKimiAccount()
-    {
-        $query = trim(request()->get('q', ''));
-
-        if ($query === '') {
-            return response()->json([
-                'account' => null
-            ]);
-        }
-
-        $accounts = KimiaService::getAccounts([
-            'AccountId' => $query,
-        ]);
-
-        $accounts = is_array($accounts) ? $accounts : [];
-
-        return response()->json([
-            'account' => $accounts[0] ?? null
-        ]);
     }
 }

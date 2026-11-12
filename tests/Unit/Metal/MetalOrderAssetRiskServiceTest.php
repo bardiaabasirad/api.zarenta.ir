@@ -28,7 +28,6 @@ function assetRiskTrader(float $threshold = 10): MetalTrader
     return MetalTrader::query()->create([
         'name' => 'risk-trader-' . uniqid(),
         'phone' => (int) ('9' . random_int(100000000, 999999999)),
-        'api_key' => MetalTrader::generateApiKey(),
         'status' => 'active',
         'asset_risk_threshold' => $threshold,
     ]);

@@ -12,10 +12,6 @@ use Illuminate\Support\Facades\Broadcast;
 */
 
 // Private channels for clients
-Broadcast::channel('balance-{userId}', function ($user, $userId) {
-    return (int) $user->id === (int) $userId;
-}, ['guards' => ['metal-trader-api']]);
-
 Broadcast::channel('rates-{userId}', function ($user, $userId) {
     return (int) $user->id === (int) $userId;
 }, ['guards' => ['metal-trader-api']]);

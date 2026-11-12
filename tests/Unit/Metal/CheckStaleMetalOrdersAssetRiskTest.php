@@ -31,7 +31,6 @@ it('auto rejects stale metal_trader order when asset ratio is below threshold', 
     $trader = MetalTrader::query()->create([
         'name' => 'stale-risk-' . uniqid(),
         'phone' => (int) ('9' . random_int(100000000, 999999999)),
-        'api_key' => MetalTrader::generateApiKey(),
         'status' => 'active',
         'asset_risk_threshold' => 10,
     ]);

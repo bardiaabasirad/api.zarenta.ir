@@ -13,7 +13,6 @@ class MetalTraderObserver
     public function updated(MetalTrader $metalTrader): void
     {
         $metalTrader->load('dealingGroup.metalItemConfigs');
-        $metalTrader->inquiry_access = $metalTrader->subscriptionNotExpired('inquiry');
 
         if (! $metalTrader->dealingGroup) {
             $setting = Cache::rememberForever(

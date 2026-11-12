@@ -6,7 +6,6 @@ use App\Http\Controllers\api\v1\metalTrader\BankAccountController;
 use App\Http\Controllers\api\v1\metalTrader\ContactController;
 use App\Http\Controllers\api\v1\metalTrader\FiatWithdrawalController;
 use App\Http\Controllers\api\v1\metalTrader\HomeController;
-use App\Http\Controllers\api\v1\metalTrader\InquiryController;
 use App\Http\Controllers\api\v1\metalTrader\MetalTraderLeadController;
 use App\Http\Controllers\api\v1\metalTrader\MetalPhysicalDeliveryController;
 use App\Http\Controllers\api\v1\metalTrader\NotificationController as TraderNotificationController;
@@ -39,6 +38,7 @@ Route::prefix('v1/traders')
                 'abilities:reset-password',
                 'throttle:5,10,metal-trader-change-password'
             ]);
+        Route::post('select-business-type', [AuthenticationController::class, 'selectBusinessType']);
         Route::post('complete-profile', [AuthenticationController::class, 'completeProfile']);
         Route::post('logout', [AuthenticationController::class, 'logout'])
             ->middleware('auth:metal-trader-api');
@@ -116,7 +116,6 @@ Route::prefix('v1/traders')
 
         Route::get('orders', [OrderController::class, 'index']);
         Route::patch('settings/market-opening-notification', [\App\Http\Controllers\api\v1\metalTrader\SettingController::class, 'updateMarketOpeningNotification']);
-        Route::patch('settings/aggregated-view-of-invoices', [\App\Http\Controllers\api\v1\metalTrader\SettingController::class, 'updateAggregatedViewOfInvoices']);
         Route::post('profile/avatar', [ApiClientController::class, 'uploadAvatar']);
         Route::delete('profile/avatar', [ApiClientController::class, 'deleteAvatar']);
         Route::get('orders/{tracking_code}', [OrderController::class, 'show']);
@@ -134,13 +133,5 @@ Route::prefix('v1/traders')
             Route::post('{ticket}/close', [SupportTicketController::class, 'close']);
         });
 
-        // inquiries
-        Route::prefix('inquiries')->group(function () {
-            Route::get('fee', [InquiryController::class, 'fee']);
-            Route::post('matching', [InquiryController::class, 'matching']);
-            Route::post('similarity', [InquiryController::class, 'similarity']);
-            Route::post('iban', [InquiryController::class, 'iban']);
-            Route::post('iban-from-card', [InquiryController::class, 'ibanFromCard']);
-        });
     });
 });

@@ -73,6 +73,7 @@ class DashboardController extends Controller
             ],
             'metal_charts' => $this->buildMetalCharts($start, $end),
             'revenue_chart' => $this->buildRevenueChart($start, $end),
+            'orders_heatmap' => $this->buildOrdersHeatmap(),
         ]);
     }
 
@@ -123,6 +124,13 @@ class DashboardController extends Controller
                 'end' => Jalalian::fromCarbon($end)->format('Y/m/d'),
             ],
             'chart' => $chart,
+        ]);
+    }
+
+    public function ordersHeatmap()
+    {
+        return response()->json([
+            'orders_heatmap' => $this->buildOrdersHeatmap(),
         ]);
     }
 
@@ -275,6 +283,84 @@ class DashboardController extends Controller
             'unit_label' => 'تومان',
             'points' => $points,
         ];
+    }
+
+    /**
+     * Daily order counts for the last 12 Jalali months, from the first day
+     * of that opening month through today. On 22 Aban this starts at 1 Azar
+     * of the previous year.
+     * Product orders accepted in calculations, plus succeeded metal orders
+     * that are not the melted-gold row created for a product order.
+     */
+    private function buildOrdersHeatmap(): array
+    {
+        $now = Jalalian::now();
+        $month = $now->getMonth() - 11;
+        $year = $now->getYear();
+        if ($month < 1) {
+            $month += 12;
+            $year--;
+        }
+
+        $startJalali = new Jalalian($year, $month, 1);
+        $start = $startJalali->toCarbon()->startOfDay();
+        $end = Carbon::now()->endOfDay();
+
+        $counts = $this->countOrdersByJalaliDay($start, $end);
+        $days = [];
+        foreach ($counts as $date => $count) {
+            $days[] = [
+                'date' => $date,
+                'count' => $count,
+            ];
+        }
+
+        return [
+            'start' => $startJalali->format('Y/m/d'),
+            'end' => $now->format('Y/m/d'),
+            'start_label' => $startJalali->format('j F Y'),
+            'end_label' => $now->format('j F Y'),
+            'total' => array_sum($counts),
+            'days' => $days,
+        ];
+    }
+
+    private function countOrdersByJalaliDay(Carbon $from, Carbon $to): array
+    {
+        $counts = [];
+        $add = function ($createdAt) use (&$counts) {
+            $key = Jalalian::fromCarbon(Carbon::parse($createdAt))->format('Y/m/d');
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        };
+
+        Order::acceptedInCalculations()
+            ->whereBetween('created_at', [$from, $to])
+            ->select(['id', 'created_at'])
+            ->orderBy('id')
+            ->chunkById(1000, function ($orders) use ($add) {
+                foreach ($orders as $order) {
+                    $add($order->created_at);
+                }
+            });
+
+        $productOrderType = (new Order())->getMorphClass();
+
+        MetalOrder::query()
+            ->where('status', 'succeed')
+            ->where(function ($query) use ($productOrderType) {
+                $query->whereNull('created_type')
+                    ->orWhere('created_type', '!=', $productOrderType);
+            })
+            ->whereBetween('created_at', [$from, $to])
+            ->select(['id', 'created_at'])
+            ->orderBy('id')
+            ->chunkById(1000, function ($orders) use ($add) {
+                foreach ($orders as $order) {
+                    $add($order->created_at);
+                }
+            });
+
+        return $counts;
     }
 
     private function siteRevenue(Carbon $from, Carbon $to): float

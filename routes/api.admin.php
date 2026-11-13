@@ -106,6 +106,7 @@ Route::prefix('v1/admin')
         Route::get('dashboard/metal-charts', [DashboardController::class, 'metalCharts']);
         Route::get('dashboard/metal-charts/{metalItemGroup}', [DashboardController::class, 'metalGroupChart']);
         Route::get('dashboard/revenue-chart', [DashboardController::class, 'revenueChart']);
+        Route::get('dashboard/orders-heatmap', [DashboardController::class, 'ordersHeatmap']);
         Route::get('badges', [DashboardController::class, 'badges']);
         Route::prefix('notifications')->group(function () {
             Route::get('/', [NotificationController::class, 'index']);

@@ -157,6 +157,10 @@ class MetalPhysicalDeliveryService
                 throw new LogicException('فقط برای فلز حاضر (T0 / is_spot) می‌توان درخواست تحویل ثبت کرد.');
             }
 
+            if (!$item->allows_physical_delivery) {
+                throw new LogicException('این فلز قابلیت تحویل فیزیکی ندارد.');
+            }
+
             $qty = $this->decimal($qty, self::METAL_SCALE, 'qty');
             $this->assertPositive($qty, self::METAL_SCALE, 'qty');
 

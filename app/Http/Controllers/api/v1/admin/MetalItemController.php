@@ -130,6 +130,7 @@ class MetalItemController extends Controller
             'is_sell_active' => 'sometimes|required',
             'is_visible' => 'sometimes|required',
             'is_spot' => 'sometimes|required',
+            'allows_physical_delivery' => 'sometimes|required',
             'settlement_working_days' => 'sometimes|required|integer|min:0',
             'purity' => 'sometimes|required',
             'unit' => 'sometimes|required|in:gram,count',

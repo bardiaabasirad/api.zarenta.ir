@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\api\v1\admin;
 
+use App\Constants\MetalItemGroupIcon;
 use App\Http\Controllers\Controller;
 use App\Models\MetalItemGroup;
 use DB;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class MetalItemGroupController extends Controller
 {
@@ -17,7 +19,7 @@ class MetalItemGroupController extends Controller
 
         $metal_item_groups = MetalItemGroup::query();
 
-        $metal_item_groups = $metal_item_groups->select('id', 'title', 'sort_order')
+        $metal_item_groups = $metal_item_groups->select('id', 'title', 'icon', 'sort_order')
             ->when(isset($id), function ($query) use ($id){
                 $query->where('id', 'like', '%' .$id . '%');
             })
@@ -73,13 +75,18 @@ class MetalItemGroupController extends Controller
     {
         $validated = $request->validate([
             'title' => 'required|min:3|max:255|unique:metal_item_groups,title',
+            'icon' => ['nullable', 'string', Rule::in(MetalItemGroupIcon::all())],
         ], [
             'title.required' => 'عنوان الزامی است',
             'title.min' => 'عنوان باید حداقل ۳ کاراکتر باشد',
-            'title.unique' => 'این عنوان قبلا استفاده شده است'
+            'title.unique' => 'این عنوان قبلا استفاده شده است',
+            'icon.in' => 'آیکن انتخاب‌شده معتبر نیست',
         ]);
 
-        // ذخیره در دیتابیس
+        if (array_key_exists('icon', $validated) && $validated['icon'] === '') {
+            $validated['icon'] = null;
+        }
+
         MetalItemGroup::create($validated);
 
         return response()->json(['message' => 'گروه با موفقیت ثبت شد']);
@@ -89,7 +96,14 @@ class MetalItemGroupController extends Controller
     {
         $validated = $request->validate([
             'title' => 'sometimes|required|min:3|max:255|unique:metal_item_groups,title,' . $metalItemGroup->id,
+            'icon' => ['sometimes', 'nullable', 'string', Rule::in(array_merge([''], MetalItemGroupIcon::all()))],
+        ], [
+            'icon.in' => 'آیکن انتخاب‌شده معتبر نیست',
         ]);
+
+        if (array_key_exists('icon', $validated) && $validated['icon'] === '') {
+            $validated['icon'] = null;
+        }
 
         $metalItemGroup->update($validated);
 

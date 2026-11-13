@@ -16,8 +16,9 @@ class SettingController extends Controller
                 'support_center_contact_number',
                 'support_contact_number',
                 'address',
-                'eitaa_channel',
-                'instagram_channel'
+                'instagram_channel',
+                'telegram_channel',
+                'rubika_channel',
             ])->get(['id','option_key','option_value']);
         });
 

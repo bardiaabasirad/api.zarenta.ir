@@ -19,8 +19,9 @@ class SettingObserver
             'support_center_contact_number',
             'support_contact_number',
             'address',
-            'eitaa_channel',
-            'instagram_channel'
+            'instagram_channel',
+            'telegram_channel',
+            'rubika_channel',
         ];
 
         if (in_array($setting->option_key, $contactInfoKeys)) {

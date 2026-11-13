@@ -46,6 +46,7 @@ function pdrSpotItem(): MetalItem
         'metal_item_group_id' => $group->id,
         'title' => 'pdr-spot-' . uniqid(),
         'is_spot' => true,
+        'allows_physical_delivery' => true,
         'is_buy_active' => true,
         'is_sell_active' => true,
         'is_visible' => true,
@@ -161,6 +162,21 @@ it('rejects non-spot metal and prevents double spend of reserved weight', functi
     $svc->create($trader, $item->id, '6.000', 'pdr-a-' . uniqid());
     expect(fn () => $svc->create($trader, $item->id, '5.000', 'pdr-b-' . uniqid()))
         ->toThrow(LogicException::class);
+});
+
+it('rejects spot metal without physical delivery flag', function () {
+    $item = pdrSpotItem();
+    $item->allows_physical_delivery = false;
+    $item->save();
+
+    pdrSeedPrice($item, '1000000');
+    $trader = pdrTrader();
+    pdrMetalWallet($trader, $item, '10.000');
+    pdrFiatWallet($trader, '1000000');
+    $svc = app(MetalPhysicalDeliveryService::class);
+
+    expect(fn () => $svc->create($trader, $item->id, '1.000'))
+        ->toThrow(LogicException::class, 'این فلز قابلیت تحویل فیزیکی ندارد.');
 });
 
 it('cancels from READY_FOR_PICKUP and refunds exact fee once', function () {
@@ -423,6 +439,7 @@ it('requires delivered_qty for gram products and forbids variance on count produ
         'metal_item_group_id' => $countGroup->id,
         'title' => 'pdr-count-' . uniqid(),
         'is_spot' => true,
+        'allows_physical_delivery' => true,
         'is_buy_active' => true,
         'is_sell_active' => true,
         'is_visible' => true,

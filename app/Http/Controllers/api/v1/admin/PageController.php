@@ -21,7 +21,7 @@ class PageController extends Controller
             'contact' => [
                 'page' => Page::where('slug','contact')->firstOrFail(),
                 'settings' => Setting::whereIn('option_key', [
-                    'support_center_contact_number','support_contact_number','eitaa_channel','instagram_channel','address'
+                    'support_center_contact_number','support_contact_number','instagram_channel','telegram_channel','rubika_channel','address'
                 ])->get()
             ],
             'terms' => [
@@ -38,7 +38,7 @@ class PageController extends Controller
         return response()->json([
             'page' => Page::where('slug','contact')->firstOrFail(),
             'settings' => Setting::whereIn('option_key', [
-                'support_center_contact_number','support_contact_number','eitaa_channel','instagram_channel','address'
+                'support_center_contact_number','support_contact_number','instagram_channel','telegram_channel','rubika_channel','address'
             ])->get()
         ]);
     }

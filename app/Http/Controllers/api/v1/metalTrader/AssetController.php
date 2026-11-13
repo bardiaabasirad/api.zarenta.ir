@@ -39,7 +39,7 @@ class AssetController extends Controller
                 'metalItem' => function ($query) {
                     // غیرفعال کردن تمامی اسکوپ‌های گلوبال روی MetalItem
                     $query->withoutGlobalScopes()
-                        ->select(['id', 'title', 'unit', 'is_spot', 'metal_item_group_id', 'sort_order']);
+                        ->select(['id', 'title', 'unit', 'is_spot', 'allows_physical_delivery', 'metal_item_group_id', 'sort_order']);
                 }
             ])
             ->select('metal_trader_wallets.*')

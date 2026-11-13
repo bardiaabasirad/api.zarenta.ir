@@ -20,6 +20,7 @@ class MetalItem extends Model
         'is_buy_active' => 'boolean',
         'is_sell_active' => 'boolean',
         'is_spot' => 'boolean',
+        'allows_physical_delivery' => 'boolean',
     ];
 
     public function group()

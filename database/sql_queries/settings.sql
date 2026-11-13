@@ -2,8 +2,9 @@ INSERT INTO `settings` (`option_key`, `option_name`, `option_value`)
 VALUES
 ('support_center_contact_number', 'شماره تماس با مرکز پشتیبانی', '6632728166'),
 ('support_contact_number', 'شماره تماس با پشتیبانی', '9382126008'),
-('eitaa_channel', 'کانال ایتا', '@zarenta'),
-('instagram_channel', 'کانال اینستگرام', 'zarenta.ir'),
+('instagram_channel', 'آدرس پیج اینستاگرام', 'zarenta.ir'),
+('telegram_channel', 'آدرس پیج تلگرام', 'zarenta'),
+('rubika_channel', 'آدرس پیج روبیکا', ''),
 ('address', 'آدرس', 'دلفان، خیابان امام خمینی (ره)، روبروی بانک ملی، طلای زرنتا'),
 ('access_token', 'توکن دسترسی جیبیت', 'eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2ppYml0LmlyIiwiYXVkIjoiaWRlbnRpY2F0b3IiLCJzdWIiOiI0T3ZqeSIsImV4cCI6MTc2MTM4NDYwMCwiYWNjZXNzIjp0cnVlfQ.KAA4aONHHu8zGLhLDRNVSKzu-nGooZE466B9Z-OqQqo2q2mznyB_ZivEo3Pq7dGSN8aQlyWxvH26v2HsHveebw'),
 ('refresh_token', 'توکن بازیابی جیبیت', 'eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2ppYml0LmlyIiwiYXVkIjoiaWRlbnRpY2F0b3IiLCJzdWIiOiI0T3ZqeSIsImV4cCI6MTc2MTQ3MTAwMCwicmVmcmVzaCI6dHJ1ZX0.EJNTgTS-2kW6Yjom3q0Sq_kprmeAVbY91E82omabb18HDHg9xzqXR13O0yWaZl8AtJ3DtrtIwYaTzT5UxMrn1A'),

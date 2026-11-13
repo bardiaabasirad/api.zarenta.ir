@@ -52,6 +52,9 @@ class MetalPhysicalDeliveryController extends Controller
         if (!$item->is_spot) {
             return response()->json(['message' => 'فقط فلز حاضر قابل تحویل است.'], 422);
         }
+        if (!$item->allows_physical_delivery) {
+            return response()->json(['message' => 'این فلز قابلیت تحویل فیزیکی ندارد.'], 422);
+        }
 
         try {
             $quote = $this->delivery->quoteFee($item, (string) $data['qty']);

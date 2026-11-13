@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class MetalItemGroup extends Model
 {
-    protected $fillable = ['title', 'slug'];
+    protected $fillable = ['title', 'slug', 'icon'];
 
     /** گروه شامل چند آیتم فلزی است */
     public function metalItems(): HasMany

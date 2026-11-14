@@ -54,7 +54,7 @@ class AzkiController extends Controller
                             CASE
                                 WHEN count > 0 THEN
                                         CEIL(
-                                            (SELECT @initial_value := {$marketPrice->price} * `weight`) +
+                                            (SELECT @initial_value := {$marketPrice->price} * `weight` * (COALESCE((SELECT gold_carat FROM products WHERE products.id = varieties.product_id), 750) / 750)) +
                                             @initial_value * (COALESCE(`percentage_sell_wage`, 0) / 100) +
                                             (COALESCE(`tomans_sell_wage`, 0)) +
                                             @initial_value * (COALESCE(`percentage_profit`, 0) / 100) +

@@ -12,7 +12,6 @@ return [
     'this_product_removed_from_your_cart' => 'این کالا از سبد خرید شما حذف شد',
 
     'the_about_page_has_been_successfully_updated' => 'صفحه درباره ما با موفقیت بروزرسانی شد',
-    'the_contact_page_has_been_successfully_updated' => 'صفحه تماس با ما با موفقیت بروزرسانی شد',
     'the_terms_page_has_been_successfully_updated' => 'صفحه قوانین و مقررات با موفقیت بروزرسانی شد',
     'the_property_has_been_successfully_updated' => 'ویژگی با موفقیت بروزرسانی شد',
     'the_property_removed_successfully' => 'ویژگی با موفقیت حذف شد',

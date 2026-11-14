@@ -49,18 +49,18 @@ class ProductController extends Controller
                                     CEIL(
                                         (
                                             -- Initial value
-                                            ({$marketPrice->price} * varieties.weight) +
+                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                             -- Sell wage
                                             (
-                                                ({$marketPrice->price} * varieties.weight) *
+                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                 COALESCE(varieties.tomans_sell_wage, 0)
                                             ) +
                                             -- Profit
                                             (
                                                 (
-                                                    ({$marketPrice->price} * varieties.weight) +
-                                                    (({$marketPrice->price} * varieties.weight) *
+                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -71,13 +71,13 @@ class ProductController extends Controller
                                                 WHEN products.vat = 'active' THEN
                                                     (
                                                         (
-                                                            (({$marketPrice->price} * varieties.weight) *
+                                                            (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                             COALESCE(varieties.tomans_sell_wage, 0)) +
                                                             (
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +

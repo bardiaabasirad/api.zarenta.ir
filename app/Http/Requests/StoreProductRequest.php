@@ -14,7 +14,7 @@ class StoreProductRequest extends FormRequest
             'size_unit_id'  => ['nullable','exists:size_units,id'],
             'title'         => ['required','max:255'],
             'description'   => ['nullable'],
-            'gold_carat'    => ['required','integer','between:0,999'],
+            'gold_carat'    => ['required','integer','between:0,1000'],
             'status'        => ['nullable','in:' . implode(',', ProductStatus::classConstants())],
             'vat'           => ['nullable','in:active,inactive'],
             'credit_payment'=> ['nullable','in:active,inactive'],

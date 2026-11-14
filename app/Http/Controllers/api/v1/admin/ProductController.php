@@ -46,18 +46,18 @@ class ProductController extends Controller
                 CEIL(
                     (
                         -- Initial value
-                        ({$marketPriceValue} * varieties.weight) +
+                        ({$marketPriceValue} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                         -- Sell wage
                         (
-                            ({$marketPriceValue} * varieties.weight) *
+                            ({$marketPriceValue} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                             COALESCE(varieties.tomans_sell_wage, 0)
                         ) +
                         -- Profit
                         (
                             (
-                                ({$marketPriceValue} * varieties.weight) +
-                                (({$marketPriceValue} * varieties.weight) *
+                                ({$marketPriceValue} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                (({$marketPriceValue} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                 COALESCE(varieties.tomans_sell_wage, 0))
                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -68,13 +68,13 @@ class ProductController extends Controller
                             WHEN products.vat = 'active' THEN
                                 (
                                     (
-                                        (({$marketPriceValue} * varieties.weight) *
+                                        (({$marketPriceValue} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                         COALESCE(varieties.tomans_sell_wage, 0)) +
                                         (
                                             (
-                                                ({$marketPriceValue} * varieties.weight) +
-                                                (({$marketPriceValue} * varieties.weight) *
+                                                ({$marketPriceValue} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                (({$marketPriceValue} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                 COALESCE(varieties.tomans_sell_wage, 0))
                                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -92,7 +92,7 @@ class ProductController extends Controller
     ";
 
         $products = Product::query()
-            ->select('products.id', 'products.title', 'products.created_at', 'products.vat')
+            ->select('products.id', 'products.title', 'products.created_at', 'products.vat', 'products.gold_carat')
             ->withCount(['varieties as total_count' => function($query){
                 $query->select(DB::raw('SUM(count)'));
             }])
@@ -124,7 +124,8 @@ class ProductController extends Controller
             })
             ->when(request()->filled('price_from') && request()->filled('price_to'), function ($query) use ($min, $max, $finalPriceSql) {
                 $query->whereHas('varieties', function ($q) use ($min, $max, $finalPriceSql) {
-                    $q->where('varieties.count', '>', 0)
+                    $q->join('products', 'varieties.product_id', '=', 'products.id')
+                        ->where('varieties.count', '>', 0)
                         ->whereRaw("({$finalPriceSql}) BETWEEN ? AND ?", [$min, $max]);
                 });
             })

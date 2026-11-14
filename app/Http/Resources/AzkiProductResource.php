@@ -21,7 +21,7 @@ class AzkiProductResource extends JsonResource
         $vat = Setting::where('option_key', 'value_added_tax')->first();
 
         return [
-            'merchant' => 'طلای ژیک',
+            'merchant' => 'طلای ' . config('app.name'),
             'name' => $this->title,
             'category_name' => $this->categories->isNotEmpty() ? $this->categories->first()->title : 'بدون دسته بندی',
             'description' => $this->description,
@@ -29,8 +29,18 @@ class AzkiProductResource extends JsonResource
             'listing_url' => 'https://zhikgold.ir/products/' . $this->id,
             'ads_id' => $this->id,
             'availability' => 'موجود',
-            'price_before_discount' => ProductPriceService::priceWithoutDiscount($this->variety, $marketPrice, $this->vat, $vat->option_value),
-            'total_price' => ProductPriceService::priceWithDiscount($this->variety, $marketPrice, $this->vat, $vat->option_value),
+            'price_before_discount' => ProductPriceService::priceWithoutDiscount(
+                tap($this->variety, fn ($variety) => $variety?->setRelation('product', $this->resource)),
+                $marketPrice,
+                $this->vat,
+                $vat->option_value
+            ),
+            'total_price' => ProductPriceService::priceWithDiscount(
+                tap($this->variety, fn ($variety) => $variety?->setRelation('product', $this->resource)),
+                $marketPrice,
+                $this->vat,
+                $vat->option_value
+            ),
         ];
     }
 }

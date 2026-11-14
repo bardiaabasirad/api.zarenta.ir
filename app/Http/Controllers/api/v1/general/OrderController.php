@@ -168,11 +168,14 @@ class OrderController extends Controller
         // بروزرسانی قیمت آیتم‌های سفارش
         foreach ($order->items as $item) {
             $product = (object) $item->product;
-            $variety = (object) $item->variety;
+            // snapshot سفارش شامل وزن/اجرت/عیار است؛ برای محاسبه از همین داده استفاده می‌شود
+            $pricedItem = (object) array_merge((array) $product, [
+                'gold_carat' => $product->carat ?? $product->gold_carat ?? null,
+            ]);
 
-            $buyPrice = ProductPriceService::purchasePrice($product, $marketPrice) * (int) $item['count'];
-            $priceWithDiscount = ProductPriceService::priceWithDiscount($variety, $marketPrice, $product->vat, $vat) * (int) $item->count;
-            $priceWithoutDiscount = ProductPriceService::priceWithoutDiscount($variety, $marketPrice, $product->vat, $vat) * (int) $item->count;
+            $buyPrice = ProductPriceService::purchasePrice($pricedItem, $marketPrice) * (int) $item['count'];
+            $priceWithDiscount = ProductPriceService::priceWithDiscount($pricedItem, $marketPrice, $product->vat, $vat) * (int) $item->count;
+            $priceWithoutDiscount = ProductPriceService::priceWithoutDiscount($pricedItem, $marketPrice, $product->vat, $vat) * (int) $item->count;
             $discount = (($priceWithoutDiscount - $priceWithDiscount) / $priceWithoutDiscount) * 100;
             $discount = (float) number_format($discount, 1, '.', '');
 

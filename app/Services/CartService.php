@@ -136,7 +136,7 @@ class CartService
         float $vat = 0.09
     ): int {
         $payable = array_reduce($items, function ($carry, $item) use ($vat, $marketPrice) {
-            $variety = Variety::with('product:id,vat')
+            $variety = Variety::with('product:id,vat,gold_carat')
                 ->findOrFail($item['variety_id']);
 
             return $carry + (
@@ -155,7 +155,8 @@ class CartService
     public static function purchase(array $items, $marketPrice): int
     {
         return array_reduce($items, function ($carry, $item) use ($marketPrice) {
-            $variety = Variety::findOrFail($item['variety_id']);
+            $variety = Variety::with('product:id,gold_carat')
+                ->findOrFail($item['variety_id']);
 
             return $carry + ProductPriceService::purchasePrice(
                     $variety,

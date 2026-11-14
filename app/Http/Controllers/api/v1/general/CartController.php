@@ -659,6 +659,8 @@ class CartController extends Controller
                 $variety->count -= (int)$item['count'];
                 $variety->save();
 
+                $variety->setRelation('product', $product);
+
                 $buyPrice = ProductPriceService::purchasePrice($variety, $database_market_price) * (int)$item['count'];
                 $priceWithDiscount = ProductPriceService::priceWithDiscount($variety, $database_market_price, $product->vat, $vatValue) * (int)$item['count'];
                 $priceWithoutDiscount = ProductPriceService::priceWithoutDiscount($variety, $received_market_price, $product->vat, $vatValue) * (int)$item['count'];
@@ -1088,7 +1090,10 @@ class CartController extends Controller
         $weight = 0;
 
         foreach ($items as $item) {
-            $weight += $item->product['weight'] * $item->count;
+            $weight += ProductPriceService::equivalentWeight18k(
+                $item->product['weight'] * $item->count,
+                $item->product['carat'] ?? $item->product['gold_carat'] ?? null
+            );
         }
 
         return englishToPersianNumbers($weight);

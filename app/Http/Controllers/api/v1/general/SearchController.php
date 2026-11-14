@@ -40,18 +40,18 @@ class SearchController extends Controller
                                         CEIL(
                                             (
                                                 -- Initial value
-                                                ({$marketPrice->price} * varieties.weight) +
+                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                 -- Sell wage
                                                 (
-                                                    ({$marketPrice->price} * varieties.weight) *
+                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                     COALESCE(varieties.tomans_sell_wage, 0)
                                                 ) +
                                                 -- Profit
                                                 (
                                                     (
-                                                        ({$marketPrice->price} * varieties.weight) +
-                                                        (({$marketPrice->price} * varieties.weight) *
+                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -62,13 +62,13 @@ class SearchController extends Controller
                                                     WHEN products.vat = 'active' THEN
                                                         (
                                                             (
-                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                 (
                                                                     (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -101,18 +101,18 @@ class SearchController extends Controller
                                         CEIL(
                                             (
                                                 -- Initial value
-                                                ({$marketPrice->price} * varieties.weight) +
+                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                 -- Sell wage
                                                 (
-                                                    ({$marketPrice->price} * varieties.weight) *
+                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                     COALESCE(varieties.tomans_sell_wage, 0)
                                                 ) +
                                                 -- Profit
                                                 (
                                                     (
-                                                        ({$marketPrice->price} * varieties.weight) +
-                                                        (({$marketPrice->price} * varieties.weight) *
+                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -123,13 +123,13 @@ class SearchController extends Controller
                                                     WHEN products.vat = 'active' THEN
                                                         (
                                                             (
-                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                 (
                                                                     (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -209,7 +209,8 @@ class SearchController extends Controller
                 $price_to = request('price_to', PHP_INT_MAX);
 
                 return $query->whereHas('varieties', function ($query) use ($vat, $marketPrice, $price_from, $price_to) {
-                    $query->where('count', '>', 0)
+                    $query->join('products', 'varieties.product_id', '=', 'products.id')
+                        ->where('varieties.count', '>', 0)
                         ->select(
                             'varieties.*',
                             DB::raw("
@@ -218,18 +219,18 @@ class SearchController extends Controller
                                         CEIL(
                                             (
                                                 -- Initial value
-                                                ({$marketPrice->price} * varieties.weight) +
+                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                 -- Sell wage
                                                 (
-                                                    ({$marketPrice->price} * varieties.weight) *
+                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                     COALESCE(varieties.tomans_sell_wage, 0)
                                                 ) +
                                                 -- Profit
                                                 (
                                                     (
-                                                        ({$marketPrice->price} * varieties.weight) +
-                                                        (({$marketPrice->price} * varieties.weight) *
+                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -240,13 +241,13 @@ class SearchController extends Controller
                                                     WHEN products.vat = 'active' THEN
                                                         (
                                                             (
-                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                 (
                                                                     (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -352,18 +353,18 @@ class SearchController extends Controller
                                                     SELECT ROUND(
                                                         (
                                                             -- Initial value
-                                                            ({$marketPrice->price} * varieties.weight) +
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                             -- Sell wage
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)
                                                             ) +
                                                             -- Profit
                                                             (
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -374,13 +375,13 @@ class SearchController extends Controller
                                                                 WHEN products.vat = 'active' THEN
                                                                     (
                                                                         (
-                                                                            (({$marketPrice->price} * varieties.weight) *
+                                                                            (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                             COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                             (
                                                                                 (
-                                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -399,18 +400,18 @@ class SearchController extends Controller
                                                     SELECT ROUND (
                                                         (
                                                             -- Initial value
-                                                            ({$marketPrice->price} * varieties.weight) +
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                             -- Sell wage
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)
                                                             ) +
                                                             -- Profit
                                                             (
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -421,13 +422,13 @@ class SearchController extends Controller
                                                                 WHEN products.vat = 'active' THEN
                                                                     (
                                                                         (
-                                                                            (({$marketPrice->price} * varieties.weight) *
+                                                                            (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                             COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                             (
                                                                                 (
-                                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -481,18 +482,18 @@ class SearchController extends Controller
                                                 SELECT ROUND(
                                                     (
                                                         -- Initial value
-                                                        ({$marketPrice->price} * varieties.weight) +
+                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                         -- Sell wage
                                                         (
-                                                            ({$marketPrice->price} * varieties.weight) *
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                             COALESCE(varieties.tomans_sell_wage, 0)
                                                         ) +
                                                         -- Profit
                                                         (
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) +
-                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0))
                                                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -503,13 +504,13 @@ class SearchController extends Controller
                                                             WHEN products.vat = 'active' THEN
                                                                 (
                                                                     (
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                         (
                                                                             (
-                                                                                ({$marketPrice->price} * varieties.weight) +
-                                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                 COALESCE(varieties.tomans_sell_wage, 0))
                                                                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -528,18 +529,18 @@ class SearchController extends Controller
                                                 SELECT ROUND (
                                                     (
                                                         -- Initial value
-                                                        ({$marketPrice->price} * varieties.weight) +
+                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                         -- Sell wage
                                                         (
-                                                            ({$marketPrice->price} * varieties.weight) *
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                             COALESCE(varieties.tomans_sell_wage, 0)
                                                         ) +
                                                         -- Profit
                                                         (
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) +
-                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0))
                                                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -550,13 +551,13 @@ class SearchController extends Controller
                                                             WHEN products.vat = 'active' THEN
                                                                 (
                                                                     (
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                         (
                                                                             (
-                                                                                ({$marketPrice->price} * varieties.weight) +
-                                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                 COALESCE(varieties.tomans_sell_wage, 0))
                                                                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -611,18 +612,18 @@ class SearchController extends Controller
                                                     SELECT ROUND(
                                                     (
                                                         -- Initial value
-                                                        ({$marketPrice->price} * varieties.weight) +
+                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                         -- Sell wage
                                                         (
-                                                            ({$marketPrice->price} * varieties.weight) *
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                             COALESCE(varieties.tomans_sell_wage, 0)
                                                         ) +
                                                         -- Profit
                                                         (
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) +
-                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0))
                                                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -633,13 +634,13 @@ class SearchController extends Controller
                                                             WHEN products.vat = 'active' THEN
                                                                 (
                                                                     (
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                         (
                                                                             (
-                                                                                ({$marketPrice->price} * varieties.weight) +
-                                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                 COALESCE(varieties.tomans_sell_wage, 0))
                                                                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -658,18 +659,18 @@ class SearchController extends Controller
                                                     SELECT ROUND (
                                                         (
                                                             -- Initial value
-                                                            ({$marketPrice->price} * varieties.weight) +
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                             -- Sell wage
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)
                                                             ) +
                                                             -- Profit
                                                             (
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -680,13 +681,13 @@ class SearchController extends Controller
                                                                 WHEN products.vat = 'active' THEN
                                                                     (
                                                                         (
-                                                                            (({$marketPrice->price} * varieties.weight) *
+                                                                            (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                             COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                             (
                                                                                 (
-                                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -741,18 +742,18 @@ class SearchController extends Controller
                                                 SELECT ROUND(
                                                     (
                                                         -- Initial value
-                                                        ({$marketPrice->price} * varieties.weight) +
+                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                         -- Sell wage
                                                         (
-                                                            ({$marketPrice->price} * varieties.weight) *
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                             COALESCE(varieties.tomans_sell_wage, 0)
                                                         ) +
                                                         -- Profit
                                                         (
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) +
-                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0))
                                                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -763,13 +764,13 @@ class SearchController extends Controller
                                                             WHEN products.vat = 'active' THEN
                                                                 (
                                                                     (
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                         (
                                                                             (
-                                                                                ({$marketPrice->price} * varieties.weight) +
-                                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                 COALESCE(varieties.tomans_sell_wage, 0))
                                                                             ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -789,7 +790,7 @@ class SearchController extends Controller
                                                     (
                                                         -- Sell wage
                                                         (
-                                                            ({$marketPrice->price} * varieties.weight) *
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                             COALESCE(varieties.tomans_sell_wage, 0)
                                                         )
@@ -797,9 +798,9 @@ class SearchController extends Controller
                                                     (
                                                         -- Initial value + sell wage
                                                         (
-                                                            ({$marketPrice->price} * varieties.weight) +
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)
                                                             )
@@ -850,18 +851,18 @@ class SearchController extends Controller
                                         CEIL(
                                             (
                                                 -- Initial value
-                                                ({$marketPrice->price} * varieties.weight) +
+                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                 -- Sell wage
                                                 (
-                                                    ({$marketPrice->price} * varieties.weight) *
+                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                     COALESCE(varieties.tomans_sell_wage, 0)
                                                 ) +
                                                 -- Profit
                                                 (
                                                     (
-                                                        ({$marketPrice->price} * varieties.weight) +
-                                                        (({$marketPrice->price} * varieties.weight) *
+                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -872,13 +873,13 @@ class SearchController extends Controller
                                                     WHEN products.vat = 'active' THEN
                                                         (
                                                             (
-                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                 (
                                                                     (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -940,18 +941,18 @@ class SearchController extends Controller
                                         CEIL(
                                             (
                                                 -- Initial value
-                                                ({$marketPrice->price} * varieties.weight) +
+                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                 -- Sell wage
                                                 (
-                                                    ({$marketPrice->price} * varieties.weight) *
+                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                     COALESCE(varieties.tomans_sell_wage, 0)
                                                 ) +
                                                 -- Profit
                                                 (
                                                     (
-                                                        ({$marketPrice->price} * varieties.weight) +
-                                                        (({$marketPrice->price} * varieties.weight) *
+                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -962,13 +963,13 @@ class SearchController extends Controller
                                                     WHEN products.vat = 'active' THEN
                                                         (
                                                             (
-                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                 (
                                                                     (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +

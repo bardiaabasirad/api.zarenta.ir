@@ -4,7 +4,6 @@ namespace App\Http\Controllers\api\v1\admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PageAboutUpdateRequest;
-use App\Http\Requests\PageContactUpdateRequest;
 use App\Http\Requests\PageTermsUpdateRequest;
 use App\Models\Page;
 use App\Models\Setting;
@@ -19,7 +18,6 @@ class PageController extends Controller
                 'page' => Page::where('slug','about')->firstOrFail()
             ],
             'contact' => [
-                'page' => Page::where('slug','contact')->firstOrFail(),
                 'settings' => Setting::whereIn('option_key', [
                     'support_center_contact_number','support_contact_number','instagram_channel','telegram_channel','rubika_channel','address'
                 ])->get()
@@ -36,7 +34,6 @@ class PageController extends Controller
 
     public function contact(){
         return response()->json([
-            'page' => Page::where('slug','contact')->firstOrFail(),
             'settings' => Setting::whereIn('option_key', [
                 'support_center_contact_number','support_contact_number','instagram_channel','telegram_channel','rubika_channel','address'
             ])->get()
@@ -54,21 +51,10 @@ class PageController extends Controller
             'body' => $request->body
         ]);
 
+        Cache::forget('about_page');
+
         return response()->json([
             'message' => __('messages.the_about_page_has_been_successfully_updated'),
-        ]);
-    }
-
-    public function updateContact(PageContactUpdateRequest $request)
-    {
-        Page::where('slug','contact')->update([
-            'body' => $request->body
-        ]);
-
-        Cache::delete('contact_page');
-
-        return response()->json([
-            'message' => __('messages.the_contact_page_has_been_successfully_updated'),
         ]);
     }
 

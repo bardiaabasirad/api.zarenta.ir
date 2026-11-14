@@ -22,13 +22,13 @@ class SettingController extends Controller
             ])->get(['id','option_key','option_value']);
         });
 
-        $contactPage = Cache::remember('contact_page', 60*24*30, function () {
-            return Page::where('slug','contact')->firstOrFail();
+        $aboutPage = Cache::remember('about_page', 60*24*30, function () {
+            return Page::where('slug', 'about')->firstOrFail();
         });
 
         return response()->json([
             'contact_info' => $contactInfo,
-            'contact_page' => $contactPage,
+            'about_page' => $aboutPage,
         ]);
     }
 

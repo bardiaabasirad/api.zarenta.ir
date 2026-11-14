@@ -339,7 +339,6 @@ Route::prefix('v1/admin')
         Route::get('pages/contact', [PageController::class, 'contact']);
         Route::get('pages/terms', [PageController::class, 'terms']);
         Route::patch('pages/update-about', [PageController::class, 'updateAbout']);
-        Route::patch('pages/update-contact', [PageController::class, 'updateContact']);
         Route::patch('pages/update-terms', [PageController::class, 'updateTerms']);
         // Users
         Route::get('users', [UserController::class, 'index']);

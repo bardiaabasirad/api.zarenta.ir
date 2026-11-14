@@ -22,7 +22,7 @@ class DirectoryController extends Controller
 
         $products = $directory->products()
             ->withPivot('order') // Eager load the 'order' column from the pivot table
-            ->select('id','title','created_at')
+            ->select('id','title','created_at','vat','gold_carat')
             ->withCount(['varieties as total_count' => function($query){
                 $query->select(DB::raw('SUM(count)'));
             }])
@@ -53,7 +53,7 @@ class DirectoryController extends Controller
                             DB::raw("CASE
                                 WHEN count > 0 THEN
                                         ROUND(
-                                            (SELECT @initial_value := {$marketPrice->price} * `weight`) +
+                                            (SELECT @initial_value := {$marketPrice->price} * `weight` * (COALESCE((SELECT gold_carat FROM products WHERE products.id = varieties.product_id), 750) / 750)) +
                                             @initial_value * (IFNULL(`percentage_sell_wage`, 0) / 100) +
                                             (IFNULL(`tomans_sell_wage`, 0)) +
                                             @initial_value * (IFNULL(`percentage_profit`, 0) / 100) +
@@ -74,7 +74,7 @@ class DirectoryController extends Controller
                             'count',
                             // Add your final_price calculation here as a select statement
                             DB::raw("ROUND(
-                                (SELECT @initial_value := {$marketPrice->price} * `weight`) +
+                                (SELECT @initial_value := {$marketPrice->price} * `weight` * (COALESCE((SELECT gold_carat FROM products WHERE products.id = varieties.product_id), 750) / 750)) +
                                 @initial_value * (IFNULL(`percentage_sell_wage`, 0) / 100) +
                                 (IFNULL(`tomans_sell_wage`, 0)) +
                                 @initial_value * (IFNULL(`percentage_profit`, 0) / 100) +
@@ -143,7 +143,7 @@ class DirectoryController extends Controller
         // ۱. بهینه‌سازی کوئری اصلی با استفاده از withCount قبل از شرط‌های having
         // (نکته: در لاراول برای فیلتر کردن روی ستون‌های count شده، حتماً باید withCount قبل از having صدا زده بشه)
         $directories = Directory::query()
-            ->select('id', 'title', 'created_at')
+            ->select('id', 'title', 'created_at', 'vat', 'gold_carat')
             ->withCount(['products as products_count']) // اول withCount رو صدا می‌زنیم
             ->when(isset($code), function ($query) use ($code) {
                 $query->where('id', 'like', '%' . $code . '%');

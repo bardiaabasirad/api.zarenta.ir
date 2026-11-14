@@ -4,6 +4,9 @@ namespace App\Constants;
 
 class AppConstants
 {
+    /** عیار مرجع نرخ بازار (طلای ۱۸ عیار) */
+    public const BASE_GOLD_CARAT = 750;
+
     public const MARKET_SPECIFIC_CONVERSION_FACTOR = 4.331802;
     public const TODAY_SPOT_SETTLEMENT = 'today_spot_settlement';
     public const TOMORROW_SPOT_SETTLEMENT = 'tomorrow_spot_settlement';

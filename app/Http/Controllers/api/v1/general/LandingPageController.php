@@ -51,18 +51,18 @@ class LandingPageController extends Controller
                                                     CEIL(
                                                         (
                                                             -- Initial value
-                                                            ({$marketPrice->price} * varieties.weight) +
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                             -- Sell wage
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)
                                                             ) +
                                                             -- Profit
                                                             (
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -73,13 +73,13 @@ class LandingPageController extends Controller
                                                                 WHEN products.vat = 'active' THEN
                                                                     (
                                                                         (
-                                                                            (({$marketPrice->price} * varieties.weight) *
+                                                                            (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                             COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                             (
                                                                                 (
-                                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -126,18 +126,18 @@ class LandingPageController extends Controller
                                                     CEIL(
                                                         (
                                                             -- Initial value
-                                                            ({$marketPrice->price} * varieties.weight) +
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                             -- Sell wage
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)
                                                             ) +
                                                             -- Profit
                                                             (
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -148,13 +148,13 @@ class LandingPageController extends Controller
                                                                 WHEN products.vat = 'active' THEN
                                                                     (
                                                                         (
-                                                                            (({$marketPrice->price} * varieties.weight) *
+                                                                            (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                             COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                             (
                                                                                 (
-                                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -196,18 +196,18 @@ class LandingPageController extends Controller
                                                         CEIL(
                                                             (
                                                                 -- Initial value
-                                                                ({$marketPrice->price} * varieties.weight) +
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                                 -- Sell wage
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0)
                                                                 ) +
                                                                 -- Profit
                                                                 (
                                                                     (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -218,13 +218,13 @@ class LandingPageController extends Controller
                                                                     WHEN products.vat = 'active' THEN
                                                                         (
                                                                             (
-                                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                 COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                                 (
                                                                                     (
-                                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -257,18 +257,18 @@ class LandingPageController extends Controller
                                                         CEIL(
                                                             (
                                                                 -- Initial value
-                                                                ({$marketPrice->price} * varieties.weight) +
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                                 -- Sell wage
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0)
                                                                 ) +
                                                                 -- Profit
                                                                 (
                                                                     (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -279,13 +279,13 @@ class LandingPageController extends Controller
                                                                     WHEN products.vat = 'active' THEN
                                                                         (
                                                                             (
-                                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                 COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                                 (
                                                                                     (
-                                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -324,7 +324,7 @@ class LandingPageController extends Controller
                                 $query->where('count', '>', 0);
                             })
                             ->withPivot('order') // Eager load the 'order' column from the pivot table
-                            ->select('id','title','created_at','vat')
+                            ->select('id','title','created_at','vat','gold_carat')
                             ->with(['variety' => function($query) use ($vat, $marketPrice) {
                                 $query
                                     ->where('count', '>', 0)
@@ -340,18 +340,18 @@ class LandingPageController extends Controller
                                                     CEIL(
                                                         (
                                                             -- Initial value
-                                                            ({$marketPrice->price} * varieties.weight) +
+                                                            ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                             -- Sell wage
                                                             (
-                                                                ({$marketPrice->price} * varieties.weight) *
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                 COALESCE(varieties.tomans_sell_wage, 0)
                                                             ) +
                                                             -- Profit
                                                             (
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -362,13 +362,13 @@ class LandingPageController extends Controller
                                                                 WHEN products.vat = 'active' THEN
                                                                     (
                                                                         (
-                                                                            (({$marketPrice->price} * varieties.weight) *
+                                                                            (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                             (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                             COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                             (
                                                                                 (
-                                                                                    ({$marketPrice->price} * varieties.weight) +
-                                                                                    (({$marketPrice->price} * varieties.weight) *
+                                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                    (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                     COALESCE(varieties.tomans_sell_wage, 0))
                                                                                 ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -393,7 +393,7 @@ class LandingPageController extends Controller
                     else {
                         $section->data = $directory->products()->active()
                             ->withPivot('order') // Eager load the 'order' column from the pivot table
-                            ->select('id','title','created_at','vat')
+                            ->select('id','title','created_at','vat','gold_carat')
                             ->with([
                                 'variety' => function($query) use ($vat, $marketPrice) {
                                     $query
@@ -410,18 +410,18 @@ class LandingPageController extends Controller
                                                         CEIL(
                                                             (
                                                                 -- Initial value
-                                                                ({$marketPrice->price} * varieties.weight) +
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                                 -- Sell wage
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0)
                                                                 ) +
                                                                 -- Profit
                                                                 (
                                                                     (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -432,13 +432,13 @@ class LandingPageController extends Controller
                                                                     WHEN products.vat = 'active' THEN
                                                                         (
                                                                             (
-                                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                 COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                                 (
                                                                                     (
-                                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -471,18 +471,18 @@ class LandingPageController extends Controller
                                                         CEIL(
                                                             (
                                                                 -- Initial value
-                                                                ({$marketPrice->price} * varieties.weight) +
+                                                                ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
                                                                 -- Sell wage
                                                                 (
-                                                                    ({$marketPrice->price} * varieties.weight) *
+                                                                    ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                     (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                     COALESCE(varieties.tomans_sell_wage, 0)
                                                                 ) +
                                                                 -- Profit
                                                                 (
                                                                     (
-                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +
@@ -493,13 +493,13 @@ class LandingPageController extends Controller
                                                                     WHEN products.vat = 'active' THEN
                                                                         (
                                                                             (
-                                                                                (({$marketPrice->price} * varieties.weight) *
+                                                                                (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                 (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                 COALESCE(varieties.tomans_sell_wage, 0)) +
                                                                                 (
                                                                                     (
-                                                                                        ({$marketPrice->price} * varieties.weight) +
-                                                                                        (({$marketPrice->price} * varieties.weight) *
+                                                                                        ({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) +
+                                                                                        (({$marketPrice->price} * varieties.weight * (COALESCE(products.gold_carat, 750) / 750)) *
                                                                                         (COALESCE(varieties.percentage_sell_wage, 0) / 100) +
                                                                                         COALESCE(varieties.tomans_sell_wage, 0))
                                                                                     ) * (COALESCE(varieties.percentage_profit, 0) / 100) +

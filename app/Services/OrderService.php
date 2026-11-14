@@ -55,7 +55,11 @@ class OrderService
 
     private static function purchasePrice($object, $price)
     {
-        $basePrice = $price * $object->product['weight'];
+        $basePrice = ProductPriceService::baseGoldValue(
+            (object) ['price' => $price],
+            $object->product['weight'],
+            $object->product['carat'] ?? $object->product['gold_carat'] ?? null
+        );
 
         if ($object->product['percentage_buy_wage']) $basePrice += $basePrice * ($object->product['percentage_buy_wage'] / 100);
         if ($object->product['tomans_buy_wage']) $basePrice += $object->product['tomans_buy_wage'];
@@ -87,7 +91,11 @@ class OrderService
 
     private static function calculatePrice($object, $price, $vat = 0.09): array
     {
-        $basePrice = $price * $object->product['weight'];
+        $basePrice = ProductPriceService::baseGoldValue(
+            (object) ['price' => $price],
+            $object->product['weight'],
+            $object->product['carat'] ?? $object->product['gold_carat'] ?? null
+        );
 
         $sellWage = 0;
         if ($object->product['percentage_sell_wage']) $sellWage += $basePrice * ($object->product['percentage_sell_wage'] / 100);

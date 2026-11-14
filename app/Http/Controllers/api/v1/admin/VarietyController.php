@@ -19,7 +19,7 @@ class VarietyController extends Controller
                 $query->orderBy('orders');
             },
             'product' => function($query){
-                $query->with('images','size_unit')->select('id','title','size_unit_id');
+                $query->with('images','size_unit')->select('id','title','size_unit_id','gold_carat');
             }
         ]);
 
@@ -88,7 +88,7 @@ class VarietyController extends Controller
 
         return response()->json([
             'variety' => $variety->load(['color','images','product' => function($query){
-                $query->with('images','size_unit')->select('id','title','size_unit_id');
+                $query->with('images','size_unit')->select('id','title','size_unit_id','gold_carat');
             }]),
             'message' => 'تنوع با موفقیت بروزرسانی شد'
         ]);

@@ -143,8 +143,8 @@ class DirectoryController extends Controller
         // ۱. بهینه‌سازی کوئری اصلی با استفاده از withCount قبل از شرط‌های having
         // (نکته: در لاراول برای فیلتر کردن روی ستون‌های count شده، حتماً باید withCount قبل از having صدا زده بشه)
         $directories = Directory::query()
-            ->select('id', 'title', 'created_at', 'vat', 'gold_carat')
-            ->withCount(['products as products_count']) // اول withCount رو صدا می‌زنیم
+            ->select(['id', 'title', 'created_at'])
+            ->withCount(['products as products_count'])
             ->when(isset($code), function ($query) use ($code) {
                 $query->where('id', 'like', '%' . $code . '%');
             })

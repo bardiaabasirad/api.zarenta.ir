@@ -29,12 +29,6 @@ class SettingController extends Controller
     public function index()
     {
         return response()->json(Setting::whereIn('option_key', [
-            'support_center_contact_number',
-            'support_contact_number',
-            'instagram_channel',
-            'telegram_channel',
-            'rubika_channel',
-            'address',
             'cart_duration_validity',
             'payment_deadline',
             'limited_amount_payable_by_gateway',
